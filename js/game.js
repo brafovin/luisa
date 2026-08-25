@@ -78,12 +78,18 @@ const player = {
   vx: 0, vy: 0, health: 100, cash: 0, wanted: 0,
   car: null, stun: 0, hurtCd: 0, crimeCd: 0, starCd: 0, step: 0, kills: 0,
   fireCd: 0, muzzle: 0,
-  yaw: 0, pitch: 0, lookOff: 0, bob: 0
+  yaw: 0, pitch: 0, lookOff: 0, bob: 0,
+  inside: null                 // betretener Innenraum, sonst null
 };
+const interiors = new Map();   // Haus-Id -> erzeugter Innenraum
 
 let cars = [], peds = [], parts = [], bullets = [];
 let mission = null;
 let hintText = '';
+let flashText = '', flashCd = 0;
+
+/** Kurze Meldung, die den normalen Hinweis eine Weile überschreibt. */
+function flashHint(t) { flashText = t; flashCd = 140; }
 
 /* ---------------------------- Hilfsmittel --------------------------- */
 
@@ -118,6 +124,10 @@ function inView(x, y, pad = 140) {
 
 /** Achsenweise Kollisionsauflösung gegen die Weltgeometrie. */
 function collide(e, r, canFly) {
+  if (player.inside && e === player) {
+    collideInside(player.inside, e, r, canFly);
+    return;
+  }
   const list = World.near(e.x - r, e.y - r, r * 2, r * 2, scratch);
   for (const s of list) {
     if (canFly && s.low) continue;
@@ -337,7 +347,8 @@ function playerShoot() {
 }
 
 /** Trifft die Kugel eine massive Wand? (Zäune/Hecken werden überschossen) */
-function bulletBlocked(x, y) {
+function bulletBlocked(x, y, z) {
+  if (player.inside) return blockedInside(player.inside, x, y, z);
   const list = World.near(x - 1, y - 1, 2, 2, scratch);
   for (const s of list) {
     if (s.low) continue;
@@ -375,7 +386,7 @@ function updateBullets() {
         burst(b.x, b.y, 1, 4, '#d8cfc0', 1.4, 1.2);
         break;
       }
-      if (b.z < 26 && bulletBlocked(b.x, b.y)) {
+      if ((player.inside || b.z < 26) && bulletBlocked(b.x, b.y, b.z)) {
         b.life = 0;
         burst(b.x, b.y, 10, 4, '#ffd9a0', 1.6, 1);
         Sfx.ricochet();
@@ -383,7 +394,8 @@ function updateBullets() {
       }
       if (b.friendly) {
         let hit = false;
-        for (const p of peds) {
+        const targets = player.inside ? player.inside.peds : peds;
+        for (const p of targets) {
           if (p.dead || dist2(p.x, p.y, b.x, b.y) > 12 * 12) continue;
           if (b.z < p.z || b.z > p.z + 20) continue;              // über den Kopf geschossen
           p.dead = true; player.kills++;
@@ -391,7 +403,7 @@ function updateBullets() {
           addWanted(p.kind === 'cop' ? 2 : 1);
           hit = true; break;
         }
-        if (!hit) for (const c of cars) {
+        if (!hit && !player.inside) for (const c of cars) {
           if (c.dead || c.driver || dist2(c.x, c.y, b.x, b.y) > 22 * 22) continue;
           if (b.z > c.z + 30) continue;
           burst(b.x, b.y, 8, 5, '#ffd66a', 2, 1.5);
@@ -607,6 +619,7 @@ function nearestCar(maxD) {
 }
 
 function toggleCar() {
+  if (player.inside) return;
   if (player.car) {
     const c = player.car;
     if (c.z > 0) return;                              // nicht im Sprung aussteigen
@@ -626,6 +639,66 @@ function toggleCar() {
     player.car = c;
     Sfx.tone(300, 500, 0.1, 'square', 0.25);
   }
+}
+
+/* --------------------------- Häuser betreten --------------------------- */
+
+/** Nächstes betretbares Haus, dessen Tür in Reichweite ist. */
+function nearestDoor(maxD) {
+  let best = null, bd = maxD * maxD;
+  for (const b of World.buildings) {
+    if (!b.door) continue;
+    const d = dist2(b.door.x, b.door.y, player.x, player.y);
+    if (d < bd) { bd = d; best = b; }
+  }
+  return best;
+}
+
+function exitBuilding() {
+  const it = player.inside;
+  if (!it) return;
+  player.inside = null;
+  player.x = it.outPos.x; player.y = it.outPos.y;
+  player.z = 0; player.vz = 0; player.vx = player.vy = 0;
+  collide(player, PED_R, false);
+  Sfx.tone(520, 300, 0.12, 'sine', 0.22);
+  setCamera();
+}
+
+function toggleBuilding() {
+  if (player.car) return;
+  if (player.inside) {
+    const it = player.inside;
+    if (dist2(player.x, player.y, it.inPos.x, it.inPos.y) > 46 * 46) {
+      flashHint('Zum grünen Ausgang gehen');
+      return;
+    }
+    exitBuilding();
+  } else {
+    const b = nearestDoor(46);
+    if (!b) return;
+    let it = interiors.get(b.id);
+    if (!it) { it = makeInterior(b); interiors.set(b.id, it); }
+    player.inside = it;
+    player.x = it.inPos.x; player.y = it.inPos.y;
+    player.z = 0; player.vz = 0; player.vx = player.vy = 0;
+    Sfx.tone(300, 520, 0.12, 'sine', 0.22);
+  }
+  setCamera();
+}
+
+/** Kasse ausrauben - Geld gegen Fahndungsstufe. */
+function robRegister() {
+  const it = player.inside;
+  if (!it || !it.register || it.register.looted) return false;
+  if (dist2(player.x, player.y, it.register.x, it.register.y) > 40 * 40) return false;
+  it.register.looted = true;
+  player.cash += it.register.cash;
+  burst(it.register.x, it.register.y, 34, 18, '#2bff88', 2.5, 2.5);
+  Sfx.deliver();
+  addWanted(2);
+  flashHint('Kasse geplündert: $' + it.register.cash);
+  return true;
 }
 
 /* ------------------------------- Update ------------------------------- */
@@ -674,10 +747,18 @@ function update() {
   if (mouse.left && player.fireCd === 0 && player.stun <= 0) playerShoot();
   updateBullets();
 
-  // Rechte Maustaste (oder E): ein-/aussteigen
-  if (mouse.rightHit || Input.hit('KeyE')) toggleCar();
+  // Rechte Maustaste (oder E): ein-/aussteigen; drinnen ist E die Kasse
+  const useHit = mouse.rightHit || Input.hit('KeyE');
   mouse.rightHit = false;
+  if (useHit) { if (!player.inside || !robRegister()) toggleCar(); }
+  if (Input.hit('KeyB')) toggleBuilding();
   if (Input.hit('KeyH')) Sfx.horn();
+  if (player.inside) {
+    // Wer durch die Türöffnung nach draußen läuft, steht auch draußen
+    const dr = player.inside.door;
+    if ((player.x - dr.x) * dr.nx + (player.y - dr.y) * dr.ny > 1) exitBuilding();
+    else updateInterior(player.inside);
+  }
 
   // Fahndungslevel abbauen
   if (player.crimeCd > 0) player.crimeCd--;
@@ -746,7 +827,15 @@ function update() {
 
   // Hinweistext
   let h = '';
-  if (!player.car && nearestCar(56)) h = '[RECHTSKLICK]  einsteigen';
+  if (flashCd > 0) { flashCd--; setHint(flashText); return; }
+  if (player.inside) {
+    const it = player.inside;
+    if (it.register && !it.register.looted && dist2(player.x, player.y, it.register.x, it.register.y) < 40 * 40)
+      h = '[E]  Kasse ausrauben';
+    else if (dist2(player.x, player.y, it.inPos.x, it.inPos.y) < 46 * 46) h = '[B]  hinausgehen';
+  }
+  else if (!player.car && nearestDoor(46)) h = '[B]  Haus betreten';
+  else if (!player.car && nearestCar(56)) h = '[RECHTSKLICK]  einsteigen';
   else if (player.car) h = '[RECHTSKLICK]  aussteigen   ·   [LEERTASTE]  Hüpfer   ·   [LINKSKLICK]  Drive-by';
   else if (player.z === 0) h = '';
   setHint(h);
@@ -758,7 +847,8 @@ function render() {
   ctx.save();
   if (cam.roll) { ctx.translate(VW / 2, VH / 2); ctx.rotate(cam.roll); ctx.translate(-VW / 2, -VH / 2); }
 
-  render3d(ctx, VW, VH, time, frames);
+  if (player.inside) renderInterior(ctx, player.inside, VW, VH, time, frames);
+  else render3d(ctx, VW, VH, time, frames);
 
   // Innenraum bzw. Waffe im Vordergrund
   if (player.car) drawDashboard(ctx, VW, VH, player.car, player.car.steerVis || 0);
@@ -775,7 +865,7 @@ function render() {
   }
 
   drawCrosshair(ctx, VW, VH, player.fireCd > 4 ? 6 : 0);
-  drawCompass();
+  if (!player.inside) drawCompass();
   drawMinimap();
   updateHud();
 }
@@ -811,6 +901,7 @@ function drawCompass() {
 /* ------------------------------ Minimap ------------------------------ */
 
 function drawMinimap() {
+  if (player.inside) { drawInteriorMap(); return; }
   const S = mini.width, R = S / 2, range = 900;
   mctx.clearRect(0, 0, S, S);
   mctx.save();
@@ -855,6 +946,42 @@ function drawMinimap() {
   mctx.moveTo(0, 0);
   mctx.arc(0, 0, R * 0.9, -Math.PI / 2 - FOV / 2, -Math.PI / 2 + FOV / 2);
   mctx.closePath(); mctx.fill();
+  mctx.fillStyle = '#fff';
+  mctx.beginPath(); mctx.moveTo(0, -8); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath(); mctx.fill();
+  mctx.restore();
+}
+
+/** Grundriss des betretenen Hauses. */
+function drawInteriorMap() {
+  const it = player.inside, S = mini.width, R = S / 2;
+  mctx.clearRect(0, 0, S, S);
+  mctx.save();
+  mctx.beginPath(); mctx.arc(R, R, R - 2, 0, TAU); mctx.clip();
+  mctx.fillStyle = '#1a1826'; mctx.fillRect(0, 0, S, S);
+  mctx.translate(R, R);
+  mctx.rotate(-cam.yaw - Math.PI / 2);
+  const k = Math.min(1.5, (R * 1.5) / Math.max(it.b.w, it.b.h));
+  mctx.scale(k, k);
+  mctx.translate(-player.x, -player.y);
+
+  mctx.fillStyle = '#575269';
+  mctx.fillRect(it.b.x, it.b.y, it.b.w, it.b.h);
+  mctx.fillStyle = '#8f8aa6';
+  mctx.fillRect(it.x0, it.y0, it.x1 - it.x0, it.y1 - it.y0);
+  mctx.fillStyle = '#3f3b50';
+  for (const p of it.solids) if (p.z1 > 12) mctx.fillRect(p.x0, p.y0, p.x1 - p.x0, p.y1 - p.y0);
+  mctx.fillStyle = '#2bff88';                                   // Ausgang
+  mctx.beginPath(); mctx.arc(it.inPos.x, it.inPos.y, 7 / k, 0, TAU); mctx.fill();
+  if (it.register && !it.register.looted) {
+    mctx.fillStyle = '#ffd23f';
+    mctx.beginPath(); mctx.arc(it.register.x, it.register.y, 6 / k, 0, TAU); mctx.fill();
+  }
+  mctx.fillStyle = 'rgba(255,90,120,.9)';
+  for (const p of it.peds) if (!p.dead) { mctx.beginPath(); mctx.arc(p.x, p.y, 5 / k, 0, TAU); mctx.fill(); }
+  mctx.restore();
+
+  mctx.save();
+  mctx.translate(R, R);
   mctx.fillStyle = '#fff';
   mctx.beginPath(); mctx.moveTo(0, -8); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath(); mctx.fill();
   mctx.restore();
@@ -926,7 +1053,8 @@ function resetGame(full) {
   player.z = player.vz = player.vx = player.vy = 0;
   player.health = 100; player.wanted = 0; player.stun = 0; player.hurtCd = 0;
   player.car = null;
-  if (full) { player.cash = 0; player.kills = 0; }
+  player.inside = null;
+  if (full) { player.cash = 0; player.kills = 0; interiors.clear(); }
   player.yaw = -Math.PI / 2; player.pitch = 0; player.lookOff = 0; player.bob = 0;
   setCamera();
   lastHud = {};

@@ -314,13 +314,33 @@ function drawBuilding3(ctx, b, d) {
   const glassCss = shade(GLASS, 1, d);
   const glowCss = b.neon ? shade(rgb(b.neon), 1.25, d) : null;
   for (let f = 0; f < floors; f++) {
-    const za = 9 + f * (top - 9) / floors, zb = za + Math.min(11, (top - 9) / floors * 0.55);
+    const base = b.door ? 46 : 9;
+    const za = base + f * (top - base) / floors, zb = za + Math.min(11, (top - base) / floors * 0.55);
     if (zb > top - 2) break;
     if (cam.x < x0) bandX(ctx, x0 - e, y0 + inset, y1 - inset, za, zb, glassCss);
     else if (cam.x > x1) bandX(ctx, x1 + e, y0 + inset, y1 - inset, za, zb, glassCss);
     if (cam.y < y0) bandY(ctx, y0 - e, x0 + inset, x1 - inset, za, zb, glassCss);
     else if (cam.y > y1) bandY(ctx, y1 + e, x0 + inset, x1 - inset, za, zb, glassCss);
   }
+  // Eingangstür samt Rahmen und Lampe
+  if (b.door && d < 340) {
+    const dr = b.door, hw = dr.w / 2, e2 = 0.6;
+    const frameC = shade(rgb('#2a2f3d'), 1, d);
+    const doorC = shade(rgb('#8c5a2b'), 1, d);
+    const lampC = shade(rgb('#ffd98a'), 1.3, d);
+    if (dr.side === 'W' || dr.side === 'E') {
+      const x = dr.side === 'W' ? b.x - e2 : b.x + b.w + e2;
+      bandX(ctx, x, dr.y - hw - 4, dr.y + hw + 4, 0, dr.h + 5, frameC);
+      bandX(ctx, x - dr.nx * 0.3, dr.y - hw, dr.y + hw, 0, dr.h, doorC);
+      bandX(ctx, x, dr.y - 7, dr.y + 7, dr.h + 7, dr.h + 12, lampC);
+    } else {
+      const y = dr.side === 'N' ? b.y - e2 : b.y + b.h + e2;
+      bandY(ctx, y, dr.x - hw - 4, dr.x + hw + 4, 0, dr.h + 5, frameC);
+      bandY(ctx, y - dr.ny * 0.3, dr.x - hw, dr.x + hw, 0, dr.h, doorC);
+      bandY(ctx, y, dr.x - 7, dr.x + 7, dr.h + 7, dr.h + 12, lampC);
+    }
+  }
+
   // Neonstreifen unter der Dachkante
   if (glowCss) {
     const za = top - NEON_H - 2, zb = top - 2;

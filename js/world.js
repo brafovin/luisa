@@ -82,6 +82,8 @@ const World = {
           neon: rnd() < 0.35 ? pick(PALETTE.neon) : null,
           floors: 2 + ((rnd() * 4) | 0)
         };
+        b.id = this.buildings.length;
+        this.setDoor(b, i, j, rnd);
         this.buildings.push(b);
         this.solids.push({ x: b.x, y: b.y, w: b.w, h: b.h, low: false });
       }
@@ -121,6 +123,29 @@ const World = {
       for (let k = 0; k < n; k++) this.addPalm(lx + 30 + rnd() * (ls - 60), ly + 20 + rnd() * (ls * 0.6), rnd);
       if (rnd() < 0.4) this.addHedge(lx + 20, ly + ls * 0.15, ls - 40, 14);
     }
+  },
+
+  /**
+   * Tür an der Fassade, die der nächsten Straße zugewandt ist.
+   * Nur Häuser mit genug Grundfläche lassen sich betreten.
+   */
+  setDoor(b, i, j, rnd) {
+    if (b.w < 62 || b.h < 62) { b.door = null; return; }
+    const dW = b.x - i * CS, dE = (i + 1) * CS - (b.x + b.w);
+    const dN = b.y - j * CS, dS = (j + 1) * CS - (b.y + b.h);
+    // unter allen etwa gleich straßennahen Seiten eine zufällig wählen
+    const cand = [['W', dW], ['E', dE], ['N', dN], ['S', dS]];
+    const m = Math.min(dW, dE, dN, dS);
+    const near = cand.filter(c => c[1] <= m + 26);
+    const side = near[(rnd() * near.length) | 0][0];
+    let x, y, nx = 0, ny = 0;
+    if (side === 'W')      { x = b.x;           y = b.y + b.h / 2; nx = -1; }
+    else if (side === 'E') { x = b.x + b.w;     y = b.y + b.h / 2; nx = 1; }
+    else if (side === 'N') { x = b.x + b.w / 2; y = b.y;           ny = -1; }
+    else                   { x = b.x + b.w / 2; y = b.y + b.h;     ny = 1; }
+    b.door = { side, x, y, nx, ny, w: 30, h: 34 };
+    b.interiorKind = rnd() < 0.42 ? 'shop' : rnd() < 0.6 ? 'office' : 'flat';
+    b.seed = (rnd() * 1e9) | 0;
   },
 
   makeYard(x, y, w, h, rnd) {

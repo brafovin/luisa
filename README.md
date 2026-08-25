@@ -46,6 +46,30 @@ und die Kamera geht mit: du siehst über den Zaun, während du drüberfliegst.
 Auch Schüsse rechnen mit der Höhe: zielst du über den Kopf, geht die Kugel
 daneben, und ein springender Gegner ist kurz außer Reichweite.
 
+## Häuser betreten
+
+Jedes größere Haus hat eine Tür — sie liegt immer an der Fassade, die zur
+nächsten Straße zeigt, und ist an Rahmen und Lampe zu erkennen. Wer davor
+steht, sieht den Hinweis **[B] Haus betreten**.
+
+* Drinnen wartet ein echter Raum: Wände, Decke mit Leuchten, Boden und
+  Einrichtung. Drei Sorten — **Laden** (Regalgänge und Tresen), **Büro**
+  (Schreibtische, Monitore, Pflanze) und **Wohnung** (Sofa, Tisch, Bett,
+  Fernseher). Welche Sorte ein Haus ist, steht fest: gleicher Seed, gleiche
+  Einrichtung.
+* Die Räume liegen in denselben Weltkoordinaten wie das Haus. Betreten und
+  Verlassen ist deshalb kein Szenenwechsel, sondern nur ein Wechsel der
+  Kollisions- und Zeichenebene.
+* Im Laden steht eine **Kasse**: mit **E** ausrauben — Geld sofort, dafür
+  zwei Fahndungssterne. Die Streifenwagen warten dann draußen.
+* Die Minimap zeigt drinnen den Grundriss mit Möbeln, Ausgang (grün),
+  Kasse (gelb) und Anwesenden (rot).
+* Raus geht es mit **B** am grünen Ausgangsfeld — oder einfach, indem man
+  durch die Türöffnung nach draußen läuft.
+* Möbel sind Hindernisse wie alles andere: über niedrige Tische, Betten und
+  Schreibtische kommt man mit der Leertaste drüber, Regale und Schränke
+  blocken. Auch Kugeln bleiben an Wänden und hohen Möbeln hängen.
+
 ## Spielinhalt
 
 * **Stadt**: 10 × 10 Blöcke, prozedural aber deterministisch erzeugt (fester Seed,
@@ -75,6 +99,7 @@ css/style.css   HUD- und Menü-Styling
 js/utils.js     Mathe-Helfer, Eingabe, Farbumrechnung, Sound via WebAudio
 js/world.js     Stadtgenerator und räumliches Kollisionsraster
 js/render3d.js  Software-3D-Renderer: Projektion, Nahebenen-Clipping, Polygone
+js/interior.js  Innenräume: Grundriss, Einrichtung, Kollision, Rendering
 js/game.js      Spielkern: Physik, KI, Waffen, Kamera, Spielablauf, HUD
 ```
 
@@ -93,6 +118,9 @@ Laufrichtung relativ zur Blickrichtung, Sprungkurve inklusive Kamerahöhe,
 Hindernis-Überwindung im Sprung, Treffer genau unter dem Fadenkreuz (und
 Fehlschuss bei zu hohem Zielen), Cop-Rückfeuer, Fahrphysik, Ein-/Aussteigen per
 Rechtsklick, Drive-by, Explosionen, Auftragsablauf, Tod und Neustart, Pause mit
-Zeigersperre — bei 60 fps in der dichten Innenstadt mit 5 Sternen Fahndung
+Zeigersperre. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
+aller drei Raumsorten, Wände halten stand, Hinauslaufen durch die Türöffnung,
+Ausgang nur am Türfeld, Kasse mit Geld und Fahndungsstufe — bei 60 fps drinnen
+wie in der dichten Innenstadt mit 5 Sternen Fahndung
 (gemessen in headless Chromium ohne GPU; mit Grafikbeschleunigung entsprechend
 mehr Reserve).
