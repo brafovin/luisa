@@ -22,7 +22,8 @@ den Blick. Mit **Esc** kommst du raus, das Spiel pausiert dabei automatisch.
 | --- | --- |
 | **Maus** | Umsehen und zielen |
 | **Linke Maustaste** | Schießen (im Auto: Drive-by aus dem Fenster) |
-| **Rechte Maustaste** | Auto ein- / aussteigen |
+| **Rechte Maustaste** | Auto ein- / aussteigen — mit gezogenem Sniper: Zielfernrohr |
+| **Q** bzw. **1** / **2** | Waffe wechseln: Pistole / Sniper |
 | **Leertaste** | Springen — im Auto: Hydraulik-Hüpfer |
 | **W** | Vorwärts (zu Fuß in Blickrichtung, im Auto: Gas) |
 | **S** | Rückwärts (im Auto: bremsen / rückwärts) |
@@ -45,6 +46,34 @@ und die Kamera geht mit: du siehst über den Zaun, während du drüberfliegst.
 
 Auch Schüsse rechnen mit der Höhe: zielst du über den Kopf, geht die Kugel
 daneben, und ein springender Gegner ist kurz außer Reichweite.
+
+## Waffen
+
+Zwei Waffen, mit **Q** oder direkt über **1** und **2** umschaltbar. Die
+aktuelle steht links unten im HUD.
+
+| | Pistole | Sniper |
+| --- | --- | --- |
+| Schaden | 20 | 75 |
+| Schuss alle | 0,15 s | 0,97 s |
+| Geschossgeschwindigkeit | 17 | 34 |
+| Auto zerstören | 5 Treffer | 2 Treffer |
+| Durchschlag | — | bis zu 3 Personen pro Schuss |
+| Zielfernrohr | — | 3,6-fach |
+
+Der Sniper ist die Waffe für Distanz und Wucht, nicht für Feuergefechte auf
+kurze Distanz: zwischen zwei Schüssen vergeht fast eine Sekunde.
+
+**Zielfernrohr**: rechte Maustaste halten. Das Blickfeld geht von 76° auf 21°,
+die Mausempfindlichkeit sinkt im gleichen Maß mit, und im Zoom sitzt der Schuss
+ohne Streuung genau auf dem Absehen. Dafür atmet die Waffe leicht — ein ruhiger
+Moment gehört zum Treffer dazu. Der Ring am Okularrand zeigt, wann nachgeladen
+ist. Solange der Sniper gezogen ist, gehört die rechte Maustaste dem Rohr;
+in Autos steigt man dann mit **E** ein und aus.
+
+**Rückstoß** hebt den Lauf und federt danach wieder zurück, statt den Blick
+dauerhaft zu verstellen — beim Sniper deutlich spürbar, bei der Pistole ein
+leichtes Zucken.
 
 ## Häuser betreten
 
@@ -85,7 +114,8 @@ steht, sieht den Hinweis **[B] Haus betreten**.
 * **Aufträge**: Paket am gelben Marker abholen, am grünen abliefern — gibt Geld.
   Direkt danach folgt der nächste Auftrag.
 * **Autos** haben Schadensmodell: genug Treffer oder harte Crashes lassen sie
-  explodieren — die Explosion trifft auch dich und Umstehende.
+  explodieren — die Explosion trifft auch dich und Umstehende. Mit dem Sniper
+  reichen zwei Schüsse.
 * **HUD**: Sterne, Leben, Geld, Auftragsanzeige, Tacho, Fadenkreuz, Peilanzeige
   mit Entfernung und eine runde Minimap, die sich mit der Blickrichtung dreht.
 * **Ego-Ansicht**: Kopfnicken beim Laufen, Waffe in der Hand mit Mündungsfeuer,
@@ -118,7 +148,11 @@ Laufrichtung relativ zur Blickrichtung, Sprungkurve inklusive Kamerahöhe,
 Hindernis-Überwindung im Sprung, Treffer genau unter dem Fadenkreuz (und
 Fehlschuss bei zu hohem Zielen), Cop-Rückfeuer, Fahrphysik, Ein-/Aussteigen per
 Rechtsklick, Drive-by, Explosionen, Auftragsablauf, Tod und Neustart, Pause mit
-Zeigersperre. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
+Zeigersperre. Für die Waffen zusätzlich: Wechsel und HUD-Anzeige, Zoomfaktor und
+mitskalierte Mausempfindlichkeit im Zielfernrohr, Durchschlag durch drei
+Personen, Treffer auf 520 Einheiten Entfernung, Wände stoppen die Kugel weiter,
+zwei Sniper- gegen fünf Pistolentreffer pro Auto, und dass die rechte Maustaste
+mit gezogenem Sniper zielt statt einzusteigen. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
 aller drei Raumsorten, Wände halten stand, Hinauslaufen durch die Türöffnung,
 Ausgang nur am Türfeld, Kasse mit Geld und Fahndungsstufe — bei 60 fps drinnen
 wie in der dichten Innenstadt mit 5 Sternen Fahndung

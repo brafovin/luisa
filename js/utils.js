@@ -131,6 +131,8 @@ const Sfx = {
   wanted()  { this.tone(240, 120, 0.5, 'sawtooth', 0.3); },
   hurt()    { this.tone(200, 90, 0.18, 'square', 0.3); },
   shot()    { this.tone(950, 180, 0.07, 'square', 0.22); this.noise(0.07, 0.3, 900); },
+  sniper()  { this.tone(320, 60, 0.32, 'sawtooth', 0.32); this.noise(0.3, 0.45, 220);
+              setTimeout(() => this.tone(180, 70, 0.5, 'sine', 0.12), 60); },
   copshot() { this.tone(700, 150, 0.08, 'sawtooth', 0.16); },
   ricochet(){ this.tone(1600, 500, 0.05, 'triangle', 0.12); },
   explode() { this.noise(0.55, 0.7, 60); this.tone(140, 35, 0.55, 'sawtooth', 0.35); }

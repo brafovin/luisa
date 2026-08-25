@@ -77,7 +77,7 @@ const player = {
   x: 0, y: 0, z: 0, vz: 0, ang: -Math.PI / 2,
   vx: 0, vy: 0, health: 100, cash: 0, wanted: 0,
   car: null, stun: 0, hurtCd: 0, crimeCd: 0, starCd: 0, step: 0, kills: 0,
-  fireCd: 0, muzzle: 0,
+  fireCd: 0, muzzle: 0, weapon: 0, scoped: false, sway: 0, zoom: 1, recoil: 0,
   yaw: 0, pitch: 0, lookOff: 0, bob: 0,
   inside: null                 // betretener Innenraum, sonst null
 };
@@ -317,33 +317,64 @@ function updatePlayerCar(c) {
 const BULLET_SPD = 17;
 const BULLET_DMG = 20;
 
-function spawnBullet(x, y, z, ang, pitch, friendly, spd) {
+/**
+ * Waffen. `pierce` = wie viele Personen eine Kugel zusätzlich durchschlägt,
+ * `zoom` = Verkleinerungsfaktor des Blickfelds im Zielfernrohr.
+ */
+const WEAPONS = [
+  {
+    name: 'PISTOLE', dmg: BULLET_DMG, cd: 9, carCd: 13, spd: BULLET_SPD,
+    spread: 0.02, carSpread: 0.05, recoil: 0.022, shake: 1.2, pierce: 0,
+    zoom: 1, reach: 46, sound: () => Sfx.shot()
+  },
+  {
+    name: 'SNIPER', dmg: 75, cd: 58, carCd: 75, spd: 34,
+    spread: 0.012, carSpread: 0.06, recoil: 0.085, shake: 7, pierce: 2,
+    zoom: 3.6, reach: 120, sound: () => Sfx.sniper()
+  }
+];
+const SNIPER = 1;
+
+function spawnBullet(x, y, z, ang, pitch, friendly, spd, dmg, pierce, life) {
   const flat = Math.cos(pitch);
   bullets.push({
     x, y, z, ang,
     vx: Math.cos(ang) * spd * flat, vy: Math.sin(ang) * spd * flat, vz: Math.sin(pitch) * spd,
-    life: 46, friendly, px: x, py: y, pz: z
+    life: life || 46, friendly, px: x, py: y, pz: z,
+    dmg: dmg || BULLET_DMG, pierce: pierce || 0
   });
 }
 
-/** Linke Maustaste: aus der Hand oder aus dem Autofenster. */
 /** Geschossen wird immer dorthin, wo das Fadenkreuz steht. */
 function playerShoot() {
+  const w = WEAPONS[player.weapon];
   const inCar = !!player.car;
   const ox = inCar ? player.car.x : player.x;
   const oy = inCar ? player.car.y : player.y;
-  const spread = inCar ? 0.05 : 0.02;
+  // Im Zielfernrohr sitzt der Schuss genau auf dem Fadenkreuz
+  const spread = player.scoped ? 0 : (inCar ? w.carSpread : w.spread);
   const a = cam.yaw + (rng() - 0.5) * spread;
   const pit = cam.pitch + (rng() - 0.5) * spread;
   const off = inCar ? 30 : 16;
   const ez = (inCar ? CAR_EYE + player.car.z : EYE + player.z) - 2;
-  spawnBullet(ox + Math.cos(a) * off, oy + Math.sin(a) * off, ez, a, pit, true, BULLET_SPD);
+  spawnBullet(ox + Math.cos(a) * off, oy + Math.sin(a) * off, ez, a, pit, true,
+    w.spd, w.dmg, w.pierce, w.reach);
   player.ang = a;
-  player.muzzle = 4;
-  player.fireCd = inCar ? 13 : 9;
-  shake = Math.min(6, shake + 1.2);
-  player.pitch = clamp(player.pitch + 0.022, -PITCH_MAX, PITCH_MAX);   // Rückstoß
-  Sfx.shot();
+  player.muzzle = player.weapon === SNIPER ? 6 : 4;
+  player.fireCd = inCar ? w.carCd : w.cd;
+  shake = Math.min(14, shake + w.shake);
+  player.recoil += w.recoil;                               // hebt den Lauf, federt dann zurück
+  w.sound();
+}
+
+/** Waffe wechseln - mit Q durchschalten oder direkt über 1 und 2. */
+function switchWeapon(idx) {
+  if (idx === player.weapon) return;
+  player.weapon = idx;
+  player.fireCd = Math.max(player.fireCd, 14);
+  player.scoped = false;
+  flashHint(WEAPONS[idx].name + (idx === SNIPER ? '  —  [RECHTE MAUS] Zielfernrohr' : ''));
+  Sfx.tone(idx === SNIPER ? 260 : 420, idx === SNIPER ? 420 : 620, 0.09, 'square', 0.2);
 }
 
 /** Trifft die Kugel eine massive Wand? (Zäune/Hecken werden überschossen) */
@@ -401,13 +432,14 @@ function updateBullets() {
           p.dead = true; player.kills++;
           burst(p.x, p.y, 10, 12, '#c0223a', 3, 2.4);
           addWanted(p.kind === 'cop' ? 2 : 1);
+          if (b.pierce > 0) { b.pierce--; continue; }      // Sniper schlägt durch
           hit = true; break;
         }
         if (!hit && !player.inside) for (const c of cars) {
           if (c.dead || c.driver || dist2(c.x, c.y, b.x, b.y) > 22 * 22) continue;
           if (b.z > c.z + 30) continue;
           burst(b.x, b.y, 8, 5, '#ffd66a', 2, 1.5);
-          damageCar(c, BULLET_DMG, true);
+          damageCar(c, b.dmg, true);
           if (c.kind === 'cop' && !c.dead) addWanted(0);
           hit = true; break;
         }
@@ -717,25 +749,41 @@ function setCamera() {
     cam.roll = Math.sin(player.bob * 0.5) * 0.012;
   }
   cam.yaw = player.yaw;
-  cam.pitch = player.pitch;
+  cam.pitch = clamp(player.pitch + player.recoil, -PITCH_MAX, PITCH_MAX);
+  if (player.scoped) {                       // ruhige Hand, aber keine Statue
+    player.sway += 0.019;
+    cam.yaw += Math.sin(player.sway) * 0.0022;
+    cam.pitch += Math.sin(player.sway * 0.73 + 1.2) * 0.0016;
+  }
 }
 
 
 function update() {
   time += FRAME; frames++;
 
+  // Waffenwechsel
+  if (Input.hit('KeyQ')) switchWeapon((player.weapon + 1) % WEAPONS.length);
+  if (Input.hit('Digit1')) switchWeapon(0);
+  if (Input.hit('Digit2')) switchWeapon(SNIPER);
+
+  // Zielfernrohr: rechte Maustaste halten, nur zu Fuß mit dem Sniper
+  const canScope = player.weapon === SNIPER && !player.car;
+  player.scoped = canScope && mouse.right;
+  player.zoom = lerp(player.zoom, player.scoped ? WEAPONS[SNIPER].zoom : 1, 0.32);
+
   // Umsehen: horizontal frei, vertikal begrenzt
   if (player.car) {
-    player.lookOff = clamp(player.lookOff + mouse.dx * MOUSE_SENS, -2.2, 2.2);
+    player.lookOff = clamp(player.lookOff + mouse.dx * MOUSE_SENS / player.zoom, -2.2, 2.2);
     player.yaw = player.car.ang + player.lookOff;
   } else {
-    player.yaw += mouse.dx * MOUSE_SENS;
+    player.yaw += mouse.dx * MOUSE_SENS / player.zoom;
     if (player.yaw > Math.PI) player.yaw -= TAU;
     if (player.yaw < -Math.PI) player.yaw += TAU;
   }
-  player.pitch = clamp(player.pitch - mouse.dy * MOUSE_SENS, -PITCH_MAX, PITCH_MAX);
+  player.pitch = clamp(player.pitch - mouse.dy * MOUSE_SENS / player.zoom, -PITCH_MAX, PITCH_MAX);
   mouse.dx = mouse.dy = 0;
-  player.pitch *= 0.995;                                   // Rückstoß läuft langsam aus
+  player.recoil *= 0.86;                                   // Rückstoß federt zurück
+  if (player.recoil < 0.0005) player.recoil = 0;
 
   if (player.car) updatePlayerCar(player.car);
   else updatePlayerOnFoot();
@@ -747,8 +795,9 @@ function update() {
   if (mouse.left && player.fireCd === 0 && player.stun <= 0) playerShoot();
   updateBullets();
 
-  // Rechte Maustaste (oder E): ein-/aussteigen; drinnen ist E die Kasse
-  const useHit = mouse.rightHit || Input.hit('KeyE');
+  // Rechte Maustaste (oder E): ein-/aussteigen; drinnen ist E die Kasse.
+  // Mit gezogenem Sniper gehört die rechte Maustaste dem Zielfernrohr.
+  const useHit = (mouse.rightHit && !canScope) || Input.hit('KeyE');
   mouse.rightHit = false;
   if (useHit) { if (!player.inside || !robRegister()) toggleCar(); }
   if (Input.hit('KeyB')) toggleBuilding();
@@ -835,7 +884,8 @@ function update() {
     else if (dist2(player.x, player.y, it.inPos.x, it.inPos.y) < 46 * 46) h = '[B]  hinausgehen';
   }
   else if (!player.car && nearestDoor(46)) h = '[B]  Haus betreten';
-  else if (!player.car && nearestCar(56)) h = '[RECHTSKLICK]  einsteigen';
+  else if (!player.car && nearestCar(56))
+    h = player.weapon === SNIPER ? '[E]  einsteigen' : '[RECHTSKLICK]  einsteigen';
   else if (player.car) h = '[RECHTSKLICK]  aussteigen   ·   [LEERTASTE]  Hüpfer   ·   [LINKSKLICK]  Drive-by';
   else if (player.z === 0) h = '';
   setHint(h);
@@ -847,13 +897,16 @@ function render() {
   ctx.save();
   if (cam.roll) { ctx.translate(VW / 2, VH / 2); ctx.rotate(cam.roll); ctx.translate(-VW / 2, -VH / 2); }
 
+  setFov(FOV / player.zoom);
   if (player.inside) renderInterior(ctx, player.inside, VW, VH, time, frames);
   else render3d(ctx, VW, VH, time, frames);
 
   // Innenraum bzw. Waffe im Vordergrund
   if (player.car) drawDashboard(ctx, VW, VH, player.car, player.car.steerVis || 0);
-  const mz = drawWeapon(ctx, VW, VH, player.bob, player.muzzle > 0 ? 1 : 0, !!player.car);
-  if (player.muzzle > 0) drawMuzzleFlash(ctx, mz);
+  if (player.zoom < 1.35) {                     // im Zoom stört das Waffenmodell
+    const mz = drawWeapon(ctx, VW, VH, player.bob, player.muzzle > 0 ? 1 : 0, !!player.car, player.weapon);
+    if (player.muzzle > 0) drawMuzzleFlash(ctx, mz);
+  }
   ctx.restore();
 
   // Dunst und Abendstimmung (vorgerendert)
@@ -864,7 +917,8 @@ function render() {
     ctx.fillRect(0, 0, VW, VH);
   }
 
-  drawCrosshair(ctx, VW, VH, player.fireCd > 4 ? 6 : 0);
+  if (player.zoom > 1.35) drawScope(ctx, VW, VH, player.zoom, WEAPONS[SNIPER].zoom, player.fireCd);
+  else drawCrosshair(ctx, VW, VH, player.fireCd > 4 ? 6 : 0);
   if (!player.inside) drawCompass();
   drawMinimap();
   updateHud();
@@ -877,13 +931,14 @@ function drawCompass() {
   const rel = angDiff(cam.yaw, Math.atan2(mission.y - py, mission.x - px));
   const col = mission.stage === 'pickup' ? '#ffd23f' : '#2bff88';
   const half = VW * 0.34;
-  const x = clamp(VW / 2 + rel / (FOV / 2) * (VW / 2), VW / 2 - half, VW / 2 + half);
+  const fv = currentFov();
+  const x = clamp(VW / 2 + rel / (fv / 2) * (VW / 2), VW / 2 - half, VW / 2 + half);
   const y = 92;
   ctx.save();
   ctx.globalAlpha = 0.92;
   ctx.fillStyle = col;
   ctx.beginPath();
-  if (Math.abs(rel) > FOV / 2) {                       // außerhalb des Blickfelds: Pfeil zur Seite
+  if (Math.abs(rel) > fv / 2) {                       // außerhalb des Blickfelds: Pfeil zur Seite
     const dir = rel > 0 ? 1 : -1;
     ctx.moveTo(x + dir * 13, y); ctx.lineTo(x - dir * 6, y - 9); ctx.lineTo(x - dir * 6, y + 9);
   } else {
@@ -944,7 +999,7 @@ function drawMinimap() {
   mctx.fillStyle = 'rgba(255,255,255,.13)';
   mctx.beginPath();
   mctx.moveTo(0, 0);
-  mctx.arc(0, 0, R * 0.9, -Math.PI / 2 - FOV / 2, -Math.PI / 2 + FOV / 2);
+  mctx.arc(0, 0, R * 0.9, -Math.PI / 2 - currentFov() / 2, -Math.PI / 2 + currentFov() / 2);
   mctx.closePath(); mctx.fill();
   mctx.fillStyle = '#fff';
   mctx.beginPath(); mctx.moveTo(0, -8); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath(); mctx.fill();
@@ -994,6 +1049,7 @@ const el = {
   stars: document.getElementById('stars'),
   health: document.querySelector('#healthbar i'),
   cash: document.getElementById('cash'),
+  weapon: document.getElementById('weapon'),
   mission: document.getElementById('mission'),
   hint: document.getElementById('hint'),
   speedo: document.getElementById('speedo'),
@@ -1016,6 +1072,11 @@ function updateHud() {
   const hp = Math.round(player.health);
   if (hp !== lastHud.hp) { el.health.style.width = hp + '%'; lastHud.hp = hp; }
   if (player.cash !== lastHud.cash) { el.cash.textContent = '$' + player.cash.toLocaleString('de-DE'); lastHud.cash = player.cash; }
+  if (player.weapon !== lastHud.weapon) {
+    el.weapon.textContent = WEAPONS[player.weapon].name;
+    el.weapon.classList.toggle('sniper', player.weapon === SNIPER);
+    lastHud.weapon = player.weapon;
+  }
 
   const mt = !mission ? 'Auftrag wird geladen …'
     : mission.stage === 'pickup' ? '📦 Paket abholen (gelber Marker)'
@@ -1054,6 +1115,7 @@ function resetGame(full) {
   player.health = 100; player.wanted = 0; player.stun = 0; player.hurtCd = 0;
   player.car = null;
   player.inside = null;
+  player.weapon = 0; player.scoped = false; player.zoom = 1; player.recoil = 0;
   if (full) { player.cash = 0; player.kills = 0; interiors.clear(); }
   player.yaw = -Math.PI / 2; player.pitch = 0; player.lookOff = 0; player.bob = 0;
   setCamera();

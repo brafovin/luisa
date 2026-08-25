@@ -11,6 +11,9 @@ canvas#game{display:block;width:100vw;height:100vh;cursor:none}
 #healthbar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff2e63,#ff8a3d);transition:width .15s}
 #cash{margin-top:8px;font-size:30px;font-weight:bold;color:#2bff88;letter-spacing:1px}
 
+#weapon{margin-top:4px;font-size:15px;letter-spacing:3px;font-weight:bold;color:#cfd6e8;opacity:.85}
+#weapon.sniper{color:#ffd23f}
+
 #mission{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:19px;letter-spacing:1px;
   background:rgba(10,6,30,.55);padding:9px 20px;border-radius:22px;border:1px solid rgba(255,110,199,.4);white-space:nowrap}
 #hint{position:absolute;bottom:186px;left:50%;transform:translateX(-50%);font-size:17px;color:#ffe27a;opacity:0;transition:opacity .2s}

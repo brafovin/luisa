@@ -6,7 +6,10 @@
  *  ein 2D-Canvas gezeichnet (Maler-Algorithmus, Rückseiten-Culling).
  * ------------------------------------------------------------------ */
 
-const FOV  = 76 * Math.PI / 180;
+const FOV  = 76 * Math.PI / 180;   // Standardblickfeld
+let viewFov = FOV;                 // aktuell wirksames Blickfeld (Zoom im Zielfernrohr)
+function setFov(f) { viewFov = f; }
+function currentFov() { return viewFov; }
 const NEAR = 1.4;                       // Nahebene
 const VIEW_FAR = 1250;                  // Sichtweite
 const FOG_RGB = [96, 92, 128];          // Dunstfarbe am Horizont
@@ -45,7 +48,7 @@ function shade(c, light, d, alpha) {
 
 function beginFrame(vw, vh) {
   HW = vw / 2; HH = vh / 2;
-  F = HW / Math.tan(FOV / 2);
+  F = HW / Math.tan(viewFov / 2);
   sy_ = Math.sin(cam.yaw); cy_ = Math.cos(cam.yaw);
   sp_ = Math.sin(cam.pitch); cp_ = Math.cos(cam.pitch);
   horizonY = HH + Math.tan(cam.pitch) * F;
@@ -530,7 +533,8 @@ function render3d(ctx, vw, vh, time, frames) {
 /* --------------------- Waffe, Armaturenbrett, Visier --------------------- */
 
 /** Pistole am unteren Bildrand, mit Laufbewegung und Rückstoß. */
-function drawWeapon(ctx, vw, vh, bob, recoil, inCar) {
+function drawWeapon(ctx, vw, vh, bob, recoil, inCar, weapon) {
+  if (weapon === 1) return drawRifle(ctx, vw, vh, bob, recoil, inCar);
   const S = (vh / 760) * (inCar ? 0.95 : 1.3);
   const ax = vw * (inCar ? 0.64 : 0.71) + Math.sin(bob) * 11 * S;
   const ay = vh * (inCar ? 1.06 : 1.12) + Math.abs(Math.cos(bob)) * 9 * S - recoil * 26 * S;
@@ -587,6 +591,74 @@ function drawWeapon(ctx, vw, vh, bob, recoil, inCar) {
   ctx.restore();
 
   return { x: ax + Math.cos(-0.22 - Math.PI / 2) * 206 * S, y: ay + Math.sin(-0.22 - Math.PI / 2) * 206 * S };
+}
+
+/** Scharfschützengewehr: langer Lauf, Zielfernrohr, Schaft. */
+function drawRifle(ctx, vw, vh, bob, recoil, inCar) {
+  const S = (vh / 760) * (inCar ? 0.72 : 0.82);
+  const ax = vw * (inCar ? 0.70 : 0.75) + Math.sin(bob) * 9 * S;
+  const ay = vh * (inCar ? 1.12 : 1.18) + Math.abs(Math.cos(bob)) * 8 * S - recoil * 34 * S;
+
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(-0.44 + recoil * 0.2);
+  ctx.scale(S, S);
+
+  ctx.fillStyle = '#3a2b20';                       // Schaft
+  ctx.beginPath();
+  ctx.moveTo(-16, -120); ctx.lineTo(26, -128); ctx.lineTo(66, 40); ctx.lineTo(6, 46);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#2a1f17';                       // Griffstück
+  ctx.beginPath();
+  ctx.moveTo(-14, -128); ctx.lineTo(18, -132); ctx.lineTo(34, -60); ctx.lineTo(2, -56);
+  ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = '#242832';                       // Systemkasten
+  ctx.fillRect(-26, -250, 46, 128);
+  ctx.fillStyle = '#171a22';
+  ctx.fillRect(-26, -212, 46, 12);
+  ctx.fillStyle = '#3d434f';                       // Kammerstängel
+  ctx.fillRect(18, -236, 26, 11);
+  ctx.beginPath(); ctx.arc(46, -230, 8, 0, TAU); ctx.fill();
+
+  ctx.fillStyle = '#2b303c';                       // Lauf
+  ctx.fillRect(-14, -392, 22, 152);
+  ctx.fillStyle = '#454b58';                       // Mündungsbremse
+  ctx.fillRect(-18, -412, 30, 22);
+  ctx.fillStyle = '#0e1015';
+  ctx.fillRect(-8, -410, 10, 18);
+
+  ctx.fillStyle = '#1b1f28';                       // Zielfernrohr
+  ctx.fillRect(-24, -352, 44, 30);
+  ctx.beginPath(); ctx.ellipse(-2, -356, 26, 15, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#5fa8d8';
+  ctx.beginPath(); ctx.ellipse(-2, -356, 18, 10, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#20242e';                       // Montageringe
+  ctx.fillRect(-26, -330, 48, 10);
+  ctx.fillRect(-26, -378, 48, 10);
+
+  ctx.fillStyle = '#302b3a';                       // Zweibein
+  ctx.fillRect(-22, -300, 10, 40);
+
+  ctx.fillStyle = '#dda87e';                       // Hand am Griff
+  ctx.beginPath(); ctx.ellipse(14, -104, 26, 34, -0.2, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#c9905f';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.ellipse(-4, -136 + i * 20, 14, 8, 0.1, 0, TAU); ctx.fill();
+  }
+  ctx.fillStyle = '#cf9a6d';                       // Unterarm
+  ctx.beginPath();
+  ctx.moveTo(2, -78); ctx.lineTo(48, -70); ctx.lineTo(92, 190); ctx.lineTo(24, 190);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#20e3b2';                       // Ärmel
+  ctx.beginPath();
+  ctx.moveTo(20, 40); ctx.lineTo(76, 48); ctx.lineTo(92, 190); ctx.lineTo(24, 190);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  const a = -0.44 + recoil * 0.2;
+  return { x: ax + Math.cos(a - Math.PI / 2) * 412 * S,
+           y: ay + Math.sin(a - Math.PI / 2) * 412 * S };
 }
 
 function drawMuzzleFlash(ctx, mz) {
@@ -646,6 +718,73 @@ function drawDashboard(ctx, vw, vh, car, steer) {
   ctx.beginPath(); ctx.arc(0, 0, vh * 0.24, 0, TAU); ctx.stroke();
   ctx.strokeStyle = '#2b2f3d'; ctx.lineWidth = 18;
   ctx.beginPath(); ctx.arc(0, 0, vh * 0.24, 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+
+/** Blick durch das Zielfernrohr: schwarze Maske, Absehen, Zoomanzeige. */
+function drawScope(ctx, vw, vh, zoom, maxZoom, fireCd) {
+  const cx = vw / 2, cy = vh / 2;
+  const r = Math.min(vw, vh) * 0.42;
+  const t = clamp((zoom - 1) / (maxZoom - 1), 0, 1);   // Einblenden beim Anlegen
+
+  ctx.save();
+  ctx.globalAlpha = t;
+
+  // Alles außerhalb des Okulars abdecken
+  ctx.fillStyle = '#05050a';
+  ctx.beginPath();
+  ctx.rect(0, 0, vw, vh);
+  ctx.arc(cx, cy, r, 0, TAU, true);
+  ctx.fill();
+
+  // Linsenrand und leichte Randabdunklung
+  const edge = ctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
+  edge.addColorStop(0, 'rgba(0,0,0,0)');
+  edge.addColorStop(1, 'rgba(0,0,0,.65)');
+  ctx.fillStyle = edge;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.arc(cx, cy, r + 3, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(150,160,180,.35)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, r - 3, 0, TAU); ctx.stroke();
+
+  // Absehen mit Teilstrichen
+  ctx.strokeStyle = 'rgba(15,18,24,.92)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - r, cy); ctx.lineTo(cx - 16, cy);
+  ctx.moveTo(cx + 16, cy); ctx.lineTo(cx + r, cy);
+  ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy - 16);
+  ctx.moveTo(cx, cy + 16); ctx.lineTo(cx, cy + r);
+  ctx.stroke();
+  ctx.lineWidth = 5;
+  ctx.beginPath();                                    // dicke Balken außen
+  ctx.moveTo(cx - r, cy); ctx.lineTo(cx - r * 0.55, cy);
+  ctx.moveTo(cx + r * 0.55, cy); ctx.lineTo(cx + r, cy);
+  ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy - r * 0.55);
+  ctx.moveTo(cx, cy + r * 0.55); ctx.lineTo(cx, cy + r);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(15,18,24,.92)';
+  for (let i = 1; i <= 4; i++) {                      // Mil-Punkte
+    const o = i * r * 0.11;
+    ctx.beginPath(); ctx.arc(cx, cy + o, 2.4, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx - o, cy, 2.4, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + o, cy, 2.4, 0, TAU); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(200,40,60,.95)';
+  ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, TAU); ctx.fill();
+
+  // Nachladebalken und Zoomanzeige
+  if (fireCd > 0) {
+    ctx.strokeStyle = 'rgba(255,210,63,.85)'; ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 14, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(1 - fireCd / 58, 0, 1));
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(220,230,240,.8)';
+  ctx.font = 'bold 15px Verdana,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(maxZoom.toFixed(1) + 'x', cx, cy + r - 26);
   ctx.restore();
 }
 
