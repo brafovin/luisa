@@ -245,6 +245,7 @@ function renderInterior(ctx, it, vw, vh, time, frames) {
   for (const b of bullets) _iList.push({ d: dist(b.x, b.y, cam.x, cam.y), t: 3, o: b });
   if (it.register && !it.register.looted)
     _iList.push({ d: dist(it.register.x, it.register.y, cam.x, cam.y), t: 4, o: it.register });
+  if (stalkerPresent()) _iList.push({ d: dist(stalker.x, stalker.y, cam.x, cam.y), t: 5, o: stalker });
   _iList.sort((a, b) => b.d - a.d);
 
   for (const e of _iList) {
@@ -270,6 +271,7 @@ function renderInterior(ctx, it, vw, vh, time, frames) {
       case 1: drawPed3(ctx, o, e.d); break;
       case 2: drawParticle3(ctx, o); break;
       case 3: drawBullet3(ctx, o); break;
+      case 5: drawStalker3(ctx, e.d); break;
       case 4: {
         const pulse = 0.5 + Math.sin(time * 0.006) * 0.5;
         drawBox(ctx, o.x - 9, o.y - 11, o.x + 9, o.y + 11, 27, 40, rgb('#2f3a4d'), 40);

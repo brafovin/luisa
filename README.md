@@ -75,6 +75,27 @@ in Autos steigt man dann mit **E** ein und aus.
 dauerhaft zu verstellen — beim Sniper deutlich spürbar, bei der Pistole ein
 leichtes Zucken.
 
+## Der Fremde
+
+Nach etwa 40 Sekunden bist du nicht mehr allein. Irgendwo hinter dir steht eine
+hagere, über drei Meter große Gestalt: schwarzer Körper, überlange Arme, ein
+bleiches Gesicht ohne Züge — nur zwei glimmende Augen.
+
+* **Sie erstarrt, solange du sie ansiehst.** Blickfeld allein genügt nicht: eine
+  Hauswand dazwischen zählt als weggeschaut, dann kommt sie näher.
+* **Wegschauen kostet Boden.** Sie läuft 4,9 — schneller als dein Sprint (4,3).
+  Zu Fuß entkommst du ihr nicht, nur rückwärts gehend, den Blick auf ihr.
+* **Anstarren hilft nur begrenzt.** Nach vier Sekunden hältst du sie nicht mehr:
+  sie verschwindet und steht wieder in deinem Rücken.
+* **Ein Auto ist die sichere Flucht** — jeder Wagen fährt schneller als sie.
+  Ab 1500 Einheiten Abstand lässt sie ab und kommt später wieder.
+* **Berührung kostet Leben**, dazu Herzschlag, Flüstern und ein Bild, das von den
+  Rändern her zuläuft. Je näher sie ist, desto schneller schlägt dein Herz.
+* **Sie ist zu vertreiben**: 240 Trefferpunkte — zwölf Pistolenschüsse oder vier
+  mit dem Sniper. Das bringt **$1.500**, und sie bleibt gut eine Minute fort.
+* Sie folgt dir auch in Häuser. Auf der Minimap taucht sie nur als flackernder
+  roter Punkt auf, und auch nur, wenn sie schon nah ist.
+
 ## Häuser betreten
 
 Jedes größere Haus hat eine Tür — sie liegt immer an der Fassade, die zur
@@ -106,7 +127,10 @@ steht, sieht den Hinweis **[B] Haus betreten**.
   und Neonkanten, Parks, Parkplätze, Plazas, Strand mit Palmen und Ozean im Süden.
 * **Verkehr**: Autos fahren rechts, halten Abstand, biegen an Kreuzungen ab.
   Vier Fahrzeugtypen mit eigener Beschleunigung, Höchstgeschwindigkeit und Grip.
-* **Passanten** laufen herum und rennen weg, sobald du gesucht wirst.
+* **Passanten** haben Gesichter: Augen mit Pupillen, Brauen, Nase, Mund und
+  unterschiedliche Frisuren, Cops tragen Dienstmütze. Wenn sie in Panik
+  geraten, reißen sie Augen und Mund auf. Aus der Ferne fallen die Details
+  automatisch weg. Sie laufen herum und rennen weg, sobald du gesucht wirst.
 * **Fahndungslevel** (0–5 Sterne): steigt bei Autodiebstahl, überfahrenen oder
   erschossenen Passanten und explodierten Fahrzeugen. Streifenwagen verfolgen
   und rammen dich; ab 2 Sternen kommen Cops zu Fuß, ab 3 Sternen schießen sie zurück.
@@ -130,6 +154,7 @@ js/utils.js     Mathe-Helfer, Eingabe, Farbumrechnung, Sound via WebAudio
 js/world.js     Stadtgenerator und räumliches Kollisionsraster
 js/render3d.js  Software-3D-Renderer: Projektion, Nahebenen-Clipping, Polygone
 js/interior.js  Innenräume: Grundriss, Einrichtung, Kollision, Rendering
+js/horror.js    Der Fremde: Auftritt, Verfolgung, Sichtprüfung, Darstellung
 js/game.js      Spielkern: Physik, KI, Waffen, Kamera, Spielablauf, HUD
 ```
 
@@ -152,7 +177,10 @@ Zeigersperre. Für die Waffen zusätzlich: Wechsel und HUD-Anzeige, Zoomfaktor u
 mitskalierte Mausempfindlichkeit im Zielfernrohr, Durchschlag durch drei
 Personen, Treffer auf 520 Einheiten Entfernung, Wände stoppen die Kugel weiter,
 zwei Sniper- gegen fünf Pistolentreffer pro Auto, und dass die rechte Maustaste
-mit gezogenem Sniper zielt statt einzusteigen. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
+mit gezogenem Sniper zielt statt einzusteigen. Für den Fremden: Auftritt
+außerhalb des Blickfelds, Erstarren beim Ansehen, Aufholen beim Wegschauen,
+Wand zwischen euch zählt als weggeschaut, Flucht im Auto gelingt, Berührung
+kostet Leben, vier Sniper-Treffer vertreiben ihn samt Belohnung. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
 aller drei Raumsorten, Wände halten stand, Hinauslaufen durch die Türöffnung,
 Ausgang nur am Türfeld, Kasse mit Geld und Fahndungsstufe — bei 60 fps drinnen
 wie in der dichten Innenstadt mit 5 Sternen Fahndung

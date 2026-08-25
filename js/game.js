@@ -425,6 +425,7 @@ function updateBullets() {
       }
       if (b.friendly) {
         let hit = false;
+        if (hitStalker(b.x, b.y, b.z, b.dmg)) { b.life = 0; break; }
         const targets = player.inside ? player.inside.peds : peds;
         for (const p of targets) {
           if (p.dead || dist2(p.x, p.y, b.x, b.y) > 12 * 12) continue;
@@ -468,6 +469,9 @@ function makePed(x, y, kind) {
     x, y, z: 0, vz: 0, kind,                                  // kind: civ | cop
     ang: rng() * TAU, spd: kind === 'cop' ? 2.9 : 0.7 + rng() * 0.7,
     shirt: kind === 'cop' ? '#1b2f6b' : hslHex(rng() * 360, 62, 58),
+    hair: kind === 'cop' ? '#1b2138' : hslHex([28, 34, 20, 45, 300][(rng() * 5) | 0], 20 + rng() * 45, 12 + rng() * 34),
+    bald: kind !== 'cop' && rng() < 0.12,
+    face: (rng() * 1000) | 0,          // Variation von Augenabstand und Mund
     fireCd: 40 + rng() * 60,
     skin: hslHex(25 + rng() * 15, 45 + rng() * 20, 45 + rng() * 28),
     turnCd: 0, panic: 0, dead: false, step: rng() * 10
@@ -808,6 +812,7 @@ function update() {
     if ((player.x - dr.x) * dr.nx + (player.y - dr.y) * dr.ny > 1) exitBuilding();
     else updateInterior(player.inside);
   }
+  updateStalker();
 
   // Fahndungslevel abbauen
   if (player.crimeCd > 0) player.crimeCd--;
@@ -912,6 +917,8 @@ function render() {
   // Dunst und Abendstimmung (vorgerendert)
   ctx.drawImage(overlayCv, 0, 0, VW, VH);
 
+  drawDreadOverlay(ctx, VW, VH);
+
   if (player.hurtCd > 18) {
     ctx.fillStyle = `rgba(180,0,40,${(player.hurtCd - 18) * 0.04})`;
     ctx.fillRect(0, 0, VW, VH);
@@ -984,6 +991,11 @@ function drawMinimap() {
     if (x < 0 || y < 0 || x > S || y > S) continue;
     mctx.fillStyle = c.kind === 'cop' ? '#3b7bff' : 'rgba(230,230,240,.6)';
     mctx.fillRect(x - 2, y - 2, 4, 4);
+  }
+  if (stalkerPresent() && stalker.near > 0.35 && frames % 20 < 12) {
+    const [x, y] = m(stalker.x, stalker.y);
+    mctx.fillStyle = 'rgba(255,40,60,.9)';
+    mctx.beginPath(); mctx.arc(x, y, 5, 0, TAU); mctx.fill();
   }
   if (mission) {
     const [x, y] = m(mission.x, mission.y);
@@ -1116,6 +1128,8 @@ function resetGame(full) {
   player.car = null;
   player.inside = null;
   player.weapon = 0; player.scoped = false; player.zoom = 1; player.recoil = 0;
+  stalker.active = false; stalker.cd = ST_FIRST; stalker.near = 0; stalker.inside = null;
+  if (full) stalker.banished = 0;
   if (full) { player.cash = 0; player.kills = 0; interiors.clear(); }
   player.yaw = -Math.PI / 2; player.pitch = 0; player.lookOff = 0; player.bob = 0;
   setCamera();

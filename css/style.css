@@ -40,6 +40,7 @@ ul.keys{list-style:none;text-align:left;display:grid;grid-template-columns:1fr;g
 ul.keys li{font-size:14px;color:#e8dfff;display:flex;align-items:center;gap:10px}
 ul.keys b{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.22);border-radius:5px;padding:3px 9px;font-size:12px;min-width:44px;text-align:center}
 ul.keys span{color:#9d8fc4}
+.warn{font-size:13px;color:#ff8aa0;margin-bottom:10px;letter-spacing:.4px}
 .tip{font-size:13px;color:#ffd7f1;margin-bottom:22px;font-style:italic}
 button{font-family:"Impact","Arial Black",sans-serif;font-size:24px;letter-spacing:3px;padding:14px 42px;border:0;border-radius:40px;
   background:linear-gradient(90deg,#ff2e63,#ff9f43);color:#fff;cursor:pointer;box-shadow:0 8px 26px rgba(255,46,99,.45)}

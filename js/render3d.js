@@ -444,8 +444,77 @@ function drawPed3(ctx, p, d) {
     ctx.fillStyle = shade(rgb('#ffd23f'), 1, d);
     ctx.fillRect(cx - w * 0.1, top + h * 0.3 + bob, w * 0.2, h * 0.06);
   }
-  ctx.fillStyle = shade(rgb(p.skin), 1, d);                                // Kopf
-  ctx.beginPath(); ctx.arc(cx, top + h * 0.11 + bob, w * 0.28, 0, TAU); ctx.fill();
+  drawFace(ctx, p, cx, top + h * 0.11 + bob, w * 0.28, d);
+}
+
+/** Kopf mit Gesicht. Nah dran sieht man Augen, Nase, Mund und Frisur. */
+function drawFace(ctx, p, hx, hy, r, d) {
+  ctx.fillStyle = shade(rgb(p.skin), 1, d);
+  ctx.beginPath(); ctx.arc(hx, hy, r, 0, TAU); ctx.fill();
+  if (r < 3.5) return;                                   // zu weit weg für Details
+
+  const v = p.face || 0;
+  const eyeX = r * (0.34 + (v % 7) * 0.014);
+  const eyeY = hy - r * 0.10;
+  const eyeR = Math.max(0.7, r * 0.15);
+  const panic = p.panic > 0;
+
+  // Ohren
+  ctx.fillStyle = shade(rgb(p.skin), 0.88, d);
+  ctx.beginPath(); ctx.ellipse(hx - r * 0.95, hy + r * 0.05, r * 0.16, r * 0.24, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(hx + r * 0.95, hy + r * 0.05, r * 0.16, r * 0.24, 0, 0, TAU); ctx.fill();
+
+  // Augen
+  ctx.fillStyle = '#f6f2ee';
+  ctx.beginPath(); ctx.ellipse(hx - eyeX, eyeY, eyeR, eyeR * (panic ? 1.25 : 0.92), 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(hx + eyeX, eyeY, eyeR, eyeR * (panic ? 1.25 : 0.92), 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = ['#3b2a1c', '#26415e', '#2f5138', '#4a3352'][v % 4];
+  const pr = Math.max(0.5, eyeR * 0.55);
+  ctx.beginPath(); ctx.arc(hx - eyeX, eyeY, pr, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(hx + eyeX, eyeY, pr, 0, TAU); ctx.fill();
+
+  if (r > 6) {                                           // Brauen und Nase erst aus der Nähe
+    ctx.strokeStyle = shade(rgb(p.hair || '#2a1b12'), 0.9, d);
+    ctx.lineWidth = Math.max(0.8, r * 0.10);
+    ctx.beginPath();
+    ctx.moveTo(hx - eyeX - r * 0.20, eyeY - r * (panic ? 0.44 : 0.34));
+    ctx.lineTo(hx - eyeX + r * 0.20, eyeY - r * (panic ? 0.38 : 0.30));
+    ctx.moveTo(hx + eyeX - r * 0.20, eyeY - r * (panic ? 0.38 : 0.30));
+    ctx.lineTo(hx + eyeX + r * 0.20, eyeY - r * (panic ? 0.44 : 0.34));
+    ctx.stroke();
+    ctx.strokeStyle = shade(rgb(p.skin), 0.78, d);
+    ctx.lineWidth = Math.max(0.7, r * 0.09);
+    ctx.beginPath();
+    ctx.moveTo(hx, hy - r * 0.02); ctx.lineTo(hx - r * 0.09, hy + r * 0.24);
+    ctx.stroke();
+  }
+
+  // Mund: erschrocken offen, sonst ein Strich
+  if (panic) {
+    ctx.fillStyle = '#5a2530';
+    ctx.beginPath(); ctx.ellipse(hx, hy + r * 0.50, r * 0.20, r * 0.28, 0, 0, TAU); ctx.fill();
+  } else {
+    ctx.strokeStyle = '#8c5a58';
+    ctx.lineWidth = Math.max(0.7, r * 0.11);
+    ctx.beginPath();
+    ctx.moveTo(hx - r * 0.26, hy + r * 0.48);
+    ctx.quadraticCurveTo(hx, hy + r * (0.52 + ((v % 5) - 2) * 0.05), hx + r * 0.26, hy + r * 0.48);
+    ctx.stroke();
+  }
+
+  // Frisur bzw. Dienstmütze
+  if (p.kind === 'cop') {
+    ctx.fillStyle = shade(rgb('#1b2138'), 1, d);
+    ctx.beginPath(); ctx.arc(hx, hy - r * 0.18, r * 1.02, Math.PI, TAU); ctx.fill();
+    ctx.fillRect(hx - r * 1.05, hy - r * 0.24, r * 2.1, r * 0.22);
+    ctx.fillStyle = shade(rgb('#ffd23f'), 1, d);
+    ctx.fillRect(hx - r * 0.22, hy - r * 0.78, r * 0.44, r * 0.20);
+  } else if (!p.bald) {
+    ctx.fillStyle = shade(rgb(p.hair || '#2a1b12'), 1, d);
+    ctx.beginPath(); ctx.arc(hx, hy - r * 0.12, r * 1.0, Math.PI + 0.25, TAU - 0.25); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(hx, hy - r * 0.62, r * 0.98, r * 0.42, 0, 0, TAU); ctx.fill();
+  }
 }
 
 /* ------------------------- Zäune, Hecken, Effekte ------------------------- */
@@ -512,6 +581,7 @@ function render3d(ctx, vw, vh, time, frames) {
   for (const q of parts) if (visible(q.x, q.y, 6)) push(q.x, q.y, 6, q);
   for (const b of bullets) if (visible(b.x, b.y, 20)) push(b.x, b.y, 7, b);
   if (mission && visible(mission.x, mission.y, 60)) push(mission.x, mission.y, 8, mission);
+  if (stalkerPresent() && visible(stalker.x, stalker.y, 40)) push(stalker.x, stalker.y, 9, stalker);
 
   sceneList.sort((a, b) => b.d - a.d);
 
@@ -526,6 +596,7 @@ function render3d(ctx, vw, vh, time, frames) {
       case 6: drawParticle3(ctx, it.o); break;
       case 7: drawBullet3(ctx, it.o); break;
       case 8: drawMissionBeacon(ctx, it.o, it.d); break;
+      case 9: drawStalker3(ctx, it.d); break;
     }
   }
 }

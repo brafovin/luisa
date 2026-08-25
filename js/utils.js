@@ -135,5 +135,38 @@ const Sfx = {
               setTimeout(() => this.tone(180, 70, 0.5, 'sine', 0.12), 60); },
   copshot() { this.tone(700, 150, 0.08, 'sawtooth', 0.16); },
   ricochet(){ this.tone(1600, 500, 0.05, 'triangle', 0.12); },
-  explode() { this.noise(0.55, 0.7, 60); this.tone(140, 35, 0.55, 'sawtooth', 0.35); }
+  explode() { this.noise(0.55, 0.7, 60); this.tone(140, 35, 0.55, 'sawtooth', 0.35); },
+
+  /* --- Der Fremde --- */
+  heartbeat(vol) {
+    this.tone(62, 34, 0.13, 'sine', 0.5 * vol);
+    setTimeout(() => this.tone(54, 28, 0.17, 'sine', 0.36 * vol), 165);
+  },
+  whisper(vol) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, dur = 1.1;
+    const n = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) {
+      const env = Math.sin(Math.PI * i / n);
+      d[i] = (Math.random() * 2 - 1) * env * (0.6 + 0.4 * Math.sin(i * 0.0021));
+    }
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1150; f.Q.value = 5;
+    const g = this.ctx.createGain(); g.gain.value = 0.34 * vol;
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t);
+  },
+  dread() { this.tone(180, 44, 1.5, 'sawtooth', 0.16); },
+  scream() {
+    this.tone(720, 130, 0.85, 'sawtooth', 0.34);
+    this.noise(0.8, 0.4, 500);
+    setTimeout(() => this.tone(420, 60, 1.1, 'square', 0.2), 120);
+  },
+  banish() {
+    this.tone(90, 900, 0.4, 'sawtooth', 0.3);
+    this.noise(0.7, 0.5, 140);
+    setTimeout(() => this.tone(1200, 60, 0.7, 'sine', 0.22), 180);
+  }
 };
