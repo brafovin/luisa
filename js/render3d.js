@@ -611,6 +611,25 @@ function drawMissionBeacon(ctx, m, d) {
   drawBox(ctx, m.x - r - 3, m.y - r - 3, m.x + r + 3, m.y + r + 3, 0, 3, col, d, 0.75);
 }
 
+/** Renn-Tor: zwei Pfosten mit Querbalken, quer zur Anfahrtrichtung. */
+function drawRaceGate(ctx, g, d) {
+  const col = rgb(g.color);
+  const arm = 48, t = 7, h = g.h3;
+  const alongX = Math.abs(Math.cos(g.ang)) > 0.5;       // Anfahrt entlang x?
+  // Achsenparallele Box in der Torebene: quer zur Fahrtrichtung breit, längs dünn
+  const across = (a0, a1, thick, z0, z1, alpha) => alongX
+    ? drawBox(ctx, g.x - thick, g.y + a0, g.x + thick, g.y + a1, z0, z1, col, d, alpha)
+    : drawBox(ctx, g.x + a0, g.y - thick, g.x + a1, g.y + thick, z0, z1, col, d, alpha);
+
+  across(-arm - t, -arm + t, t, 0, h, clamp(g.alpha + 0.15, 0, 1));   // linker Pfosten
+  across(arm - t, arm + t, t, 0, h, clamp(g.alpha + 0.15, 0, 1));     // rechter Pfosten
+  across(-arm - t, arm + t, t * 0.7, h, h + 12, g.alpha);             // Querbalken
+  if (g.next) {                        // große Transparenzen nur am nächsten Tor
+    across(-arm, arm, 1.5, 0, h, g.alpha * 0.22);                     // Lichtvorhang
+    across(-arm, arm, 5, 0, 2, g.alpha * 0.7);                        // Marke auf dem Asphalt
+  }
+}
+
 function drawParticle3(ctx, q) {
   const s = project(q.x, q.y, q.z + 1);
   if (!s) return;
@@ -635,6 +654,7 @@ function drawBullet3(ctx, b) {
 /* ------------------------------ Szene ------------------------------ */
 
 const sceneList = [];
+const gateList = [];
 
 function render3d(ctx, vw, vh, time, frames) {
   beginFrame(vw, vh);
@@ -664,6 +684,7 @@ function render3d(ctx, vw, vh, time, frames) {
   for (const q of parts) if (visible(q.x, q.y, 6)) push(q.x, q.y, 6, q);
   for (const b of bullets) if (visible(b.x, b.y, 20)) push(b.x, b.y, 7, b);
   if (mission && visible(mission.x, mission.y, 60)) push(mission.x, mission.y, 8, mission);
+  for (const g of Race.gates(gateList)) if (visible(g.x, g.y, 70)) push(g.x, g.y, 10, g);
   for (const st of presentStalkers()) if (visible(st.x, st.y, 40)) push(st.x, st.y, 9, st);
 
   sceneList.sort((a, b) => b.d - a.d);
@@ -680,6 +701,7 @@ function render3d(ctx, vw, vh, time, frames) {
       case 7: drawBullet3(ctx, it.o); break;
       case 8: drawMissionBeacon(ctx, it.o, it.d); break;
       case 9: drawStalker3(ctx, it.o, it.d); break;
+      case 10: drawRaceGate(ctx, it.o, it.d); break;
     }
   }
 }

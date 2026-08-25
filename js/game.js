@@ -254,6 +254,11 @@ function updateCop(c) {
 
 /** Fahrphysik für das Spielerauto. */
 function updatePlayerCar(c) {
+  if (Race.frozen()) {                                  // Startaufstellung: Motor an, Räder still
+    c.spd = 0;
+    c.steerVis = lerp(c.steerVis || 0, 0, 0.2);
+    return;
+  }
   const fwd = Input.held('KeyW', 'ArrowUp');
   const back = Input.held('KeyS', 'ArrowDown');
   const lf = Input.held('KeyA', 'ArrowLeft');
@@ -649,6 +654,7 @@ function hurtPlayer(amount, knock) {
   }
   if (player.health <= 0) {
     player.health = 0;
+    Race.abort('RENNEN ABGEBROCHEN');
     state = 'dead';
     showOverlay('WASTED', 'R drücken für Neustart');
   }
@@ -687,7 +693,7 @@ function updateMission() {
 function nearestCar(maxD) {
   let best = null, bd = maxD * maxD;
   for (const c of cars) {
-    if (c.dead || c.driver) continue;
+    if (c.dead || c.driver || c.kind === 'racer') continue;
     const d = dist2(c.x, c.y, player.x, player.y);
     if (d < bd) { bd = d; best = c; }
   }
@@ -707,6 +713,7 @@ function toggleCar() {
     c.driver = false;
     c.kind = 'parked'; c.spd *= 0.3;
     player.car = null;
+    Race.abort('RENNEN ABGEBROCHEN');
   } else {
     const c = nearestCar(52);
     if (!c) return;
@@ -846,6 +853,7 @@ function update() {
   if (useHit) { if (!player.inside || !robRegister()) toggleCar(); }
   if (Input.hit('KeyB')) toggleBuilding();
   if (Input.hit('KeyH')) Sfx.horn();
+  if (Input.hit('KeyN')) Race.toggle();
   if (player.inside) {
     // Wer durch die Türöffnung nach draußen läuft, steht auch draußen
     const dr = player.inside.door;
@@ -866,7 +874,8 @@ function update() {
     if (c.dead || c.driver) continue;
     if (c.kind === 'traffic') { if (dist2(c.x, c.y, player.x, player.y) < 1600 * 1600) updateTraffic(c); else c.dead = true; }
     else if (c.kind === 'cop') updateCop(c);
-    if (c.kind !== 'cop' && dist2(c.x, c.y, player.x, player.y) > 1900 * 1900) c.dead = true;
+    else if (c.kind === 'racer') Race.updateRacer(c);
+    if (c.kind === 'traffic' && dist2(c.x, c.y, player.x, player.y) > 1900 * 1900) c.dead = true;
   }
   for (const p of peds) if (!p.dead) updatePed(p);
 
@@ -911,6 +920,7 @@ function update() {
   parts = parts.filter(q => q.life > 0);
 
   updateMission();
+  Race.update();
 
   // Erschütterung wirkt nur auf das Bild, nicht auf das Zielen
   if (shake > 0) {
@@ -931,7 +941,9 @@ function update() {
   else if (!player.car && nearestDoor(46)) h = '[B]  Haus betreten';
   else if (!player.car && nearestCar(56))
     h = player.weapon === SNIPER ? '[E]  einsteigen' : '[RECHTSKLICK]  einsteigen';
-  else if (player.car) h = '[RECHTSKLICK]  aussteigen   ·   [LEERTASTE]  Hüpfer   ·   [LINKSKLICK]  Drive-by';
+  else if (player.car) h = Race.active
+    ? '[N]  Rennen abbrechen'
+    : '[RECHTSKLICK]  aussteigen   ·   [LEERTASTE]  Hüpfer   ·   [N]  Straßenrennen';
   else if (player.z === 0) h = '';
   setHint(h);
 }
@@ -967,16 +979,18 @@ function render() {
   if (player.zoom > 1.35) drawScope(ctx, VW, VH, player.zoom, WEAPONS[SNIPER].zoom, player.fireCd);
   else drawCrosshair(ctx, VW, VH, player.fireCd > 4 ? 6 : 0);
   if (!player.inside) drawCompass();
+  Race.drawOverlay(ctx, VW, VH);
   drawMinimap();
   updateHud();
 }
 
 /** Auftragsrichtung als Peilung am oberen Bildrand. */
 function drawCompass() {
-  if (!mission) return;
+  const goal = Race.target() || mission;
+  if (!goal) return;
   const px = player.car ? player.car.x : player.x, py = player.car ? player.car.y : player.y;
-  const rel = angDiff(cam.yaw, Math.atan2(mission.y - py, mission.x - px));
-  const col = mission.stage === 'pickup' ? '#ffd23f' : '#2bff88';
+  const rel = angDiff(cam.yaw, Math.atan2(goal.y - py, goal.x - px));
+  const col = Race.active ? '#ff9f43' : goal.stage === 'pickup' ? '#ffd23f' : '#2bff88';
   const half = VW * 0.34;
   const fv = currentFov();
   const x = clamp(VW / 2 + rel / (fv / 2) * (VW / 2), VW / 2 - half, VW / 2 + half);
@@ -992,7 +1006,7 @@ function drawCompass() {
     ctx.moveTo(x, y + 10); ctx.lineTo(x - 9, y - 6); ctx.lineTo(x + 9, y - 6);
   }
   ctx.closePath(); ctx.fill();
-  const d = Math.round(dist(px, py, mission.x, mission.y) / 10);
+  const d = Math.round(dist(px, py, goal.x, goal.y) / 10);
   ctx.font = 'bold 13px Verdana,sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,.9)';
@@ -1029,8 +1043,8 @@ function drawMinimap() {
     if (c.dead || c.driver) continue;
     const [x, y] = m(c.x, c.y);
     if (x < 0 || y < 0 || x > S || y > S) continue;
-    mctx.fillStyle = c.kind === 'cop' ? '#3b7bff' : 'rgba(230,230,240,.6)';
-    mctx.fillRect(x - 2, y - 2, 4, 4);
+    mctx.fillStyle = c.kind === 'cop' ? '#3b7bff' : c.kind === 'racer' ? '#ff2e63' : 'rgba(230,230,240,.6)';
+    mctx.fillRect(x - 2, y - 2, c.kind === 'racer' ? 5 : 4, c.kind === 'racer' ? 5 : 4);
   }
   for (const st of presentStalkers()) {                 // nur nah und nur flackernd
     if (st.near < 0.35 || frames % 20 >= 12) continue;
@@ -1039,7 +1053,8 @@ function drawMinimap() {
     mctx.fillStyle = `rgba(${e[0]},${e[1]},${e[2]},.9)`;
     mctx.beginPath(); mctx.arc(x, y, 5, 0, TAU); mctx.fill();
   }
-  if (mission) {
+  Race.drawMap(mctx, m);
+  if (mission && !Race.active) {
     const [x, y] = m(mission.x, mission.y);
     mctx.fillStyle = mission.stage === 'pickup' ? '#ffd23f' : '#2bff88';
     mctx.beginPath();
@@ -1132,10 +1147,12 @@ function updateHud() {
     lastHud.weapon = player.weapon;
   }
 
-  const mt = !mission ? 'Auftrag wird geladen …'
-    : mission.stage === 'pickup' ? '📦 Paket abholen (gelber Marker)'
-      : `🏁 Abliefern — $${mission.reward}`;
+  const mt = Race.active ? Race.hudText()
+    : !mission ? 'Auftrag wird geladen …'
+      : mission.stage === 'pickup' ? '📦 Paket abholen (gelber Marker)'
+        : `📦 Abliefern — $${mission.reward}`;
   if (mt !== lastHud.mt) { el.mission.textContent = mt; lastHud.mt = mt; }
+  el.mission.classList.toggle('race', Race.active);
 
   const drv = !!player.car;
   el.speedo.classList.toggle('on', drv);
@@ -1155,12 +1172,13 @@ function hideOverlay() { el.overlay.classList.add('hidden'); }
 /* ------------------------------- Ablauf ------------------------------- */
 
 function resetGame(full) {
+  Race.reset();
   if (full) {
     World.generate();
     cars = []; peds = []; parts = []; bullets = [];
     spawnParked();
   } else {
-    cars = cars.filter(c => c.kind === 'parked');
+    cars = cars.filter(c => c.kind === 'parked' && !c.dead);
     peds = []; parts = []; bullets = [];
   }
   const start = { x: CS * 2, y: CS * 2 + CS / 2 };

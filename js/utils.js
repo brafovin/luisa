@@ -137,6 +137,17 @@ const Sfx = {
   ricochet(){ this.tone(1600, 500, 0.05, 'triangle', 0.12); },
   explode() { this.noise(0.55, 0.7, 60); this.tone(140, 35, 0.55, 'sawtooth', 0.35); },
 
+  /* --- Straßenrennen --- */
+  raceBeep()   { this.tone(620, 620, 0.16, 'square', 0.3); },
+  raceGo()     { this.tone(980, 980, 0.34, 'square', 0.36);
+                 setTimeout(() => this.tone(1320, 1320, 0.3, 'square', 0.3), 90); },
+  checkpoint() { this.tone(880, 1400, 0.11, 'triangle', 0.34); },
+  fanfare()    { [0, 110, 220, 380].forEach((d, i) =>
+                   setTimeout(() => this.tone([523, 659, 784, 1046][i], [523, 659, 784, 1046][i],
+                     i === 3 ? 0.45 : 0.14, 'square', 0.3), d)); },
+  raceFail()   { this.tone(420, 150, 0.4, 'sawtooth', 0.28);
+                 setTimeout(() => this.tone(240, 90, 0.55, 'sawtooth', 0.24), 160); },
+
   /* --- Der Fremde --- */
   heartbeat(vol) {
     this.tone(62, 34, 0.13, 'sine', 0.5 * vol);

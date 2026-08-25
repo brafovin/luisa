@@ -29,6 +29,7 @@ den Blick. Mit **Esc** kommst du raus, das Spiel pausiert dabei automatisch.
 | **S** | Rückwärts (im Auto: bremsen / rückwärts) |
 | **A / D** | Seitwärts laufen bzw. lenken |
 | **Y** oder **Shift** | Sprinten |
+| **N** | Straßenrennen starten (im Auto) — nochmal **N** bricht ab |
 | **H** | Hupe |
 | **P** | Pause |
 | **R** | Neustart |
@@ -74,6 +75,35 @@ in Autos steigt man dann mit **E** ein und aus.
 **Rückstoß** hebt den Lauf und federt danach wieder zurück, statt den Blick
 dauerhaft zu verstellen — beim Sniper deutlich spürbar, bei der Pistole ein
 leichtes Zucken.
+
+## Straßenrennen
+
+Setz dich in eine Karre und drück **N**: die Strecke wird von deiner Position
+und Blickrichtung aus gewürfelt, drei Rivalen stellen sich hinter dir auf, und
+nach drei Sekunden Countdown geht es los.
+
+* **Die Strecke** führt über 9 bis 12 Tore, immer von Kreuzung zu Kreuzung.
+  Geradeaus wird bevorzugt, Kehrtwenden kommen nicht vor — zwischen zwei Toren
+  liegt deshalb immer eine gerade Straße. Auch die Startlinie liegt auf der
+  Straßenachse, auf der du gerade fährst.
+* **Die Tore** stehen quer über der Fahrbahn: Pfosten, Querbalken und ein
+  Lichtvorhang. Das nächste pulsiert orange, die beiden dahinter stehen
+  gedämpft in Cyan, das Ziel in Grün. Die Peilanzeige oben zeigt Richtung und
+  Entfernung, die Minimap die ganze Route.
+* **Die Rivalen** fahren die Ideallinie zwischen zwei Toren ab, jeder mit
+  eigenem Seitenversatz, bremsen in Kurven und rempeln, wenn du im Weg bist.
+  Ihr Tempo richtet sich nach deiner Karre — im Van ist das ganze Feld
+  langsamer. Ein Gummiband hält das Rennen eng: Abgehängte holen auf, die
+  Führenden ziehen nicht davon.
+* **Platzierung** wird laufend aus der Restdistanz bis ins Ziel berechnet und
+  steht im HUD neben Tornummer und Zeit.
+* **Preisgeld**: $3.000 für Platz 1, $1.500 für Platz 2, $700 für Platz 3,
+  $250 fürs Ankommen.
+* **Abbruch** durch nochmal **N**, Aussteigen, ein Haus betreten, ein
+  zerstörtes Auto oder vier Minuten Fahrzeit — dann gibt es nichts.
+* Rivalen lassen sich auch abschießen: wer explodiert, ist raus aus der
+  Wertung. Nach dem Rennen bleiben die überlebenden Renner als klaubare Autos
+  stehen.
 
 ## Die zwei Jäger
 
@@ -151,6 +181,8 @@ steht, sieht den Hinweis **[B] Haus betreten**.
   Ohne neues Verbrechen baut sich das Level nach ca. 25 Sekunden wieder ab.
 * **Aufträge**: Paket am gelben Marker abholen, am grünen abliefern — gibt Geld.
   Direkt danach folgt der nächste Auftrag.
+* **Straßenrennen** auf Knopfdruck: gewürfelte Route über 9 bis 12 Tore, drei
+  Rivalen mit eigener KI, Countdown, Live-Platzierung und Preisgeld.
 * **Autos** haben Schadensmodell: genug Treffer oder harte Crashes lassen sie
   explodieren — die Explosion trifft auch dich und Umstehende. Mit dem Sniper
   reichen zwei Schüsse.
@@ -169,6 +201,7 @@ js/world.js     Stadtgenerator und räumliches Kollisionsraster
 js/render3d.js  Software-3D-Renderer: Projektion, Nahebenen-Clipping, Polygone
 js/interior.js  Innenräume: Grundriss, Einrichtung, Kollision, Rendering
 js/horror.js    Die zwei Jäger: Auftritt, Verfolgung, Sichtprüfung, Darstellung
+js/race.js      Straßenrennen: Streckengenerator, Rivalen-KI, Wertung, Renn-HUD
 js/game.js      Spielkern: Physik, KI, Waffen, Kamera, Spielablauf, HUD
 ```
 
@@ -200,7 +233,13 @@ vertreiben lassen und dass der Schatten messbar schneller ist. Für die
 Passantinnen: Anteil der Paare, dass Paare über Sekunden zusammenbleiben, dass
 beide gemeinsam fliehen und die Überlebende nach einem Verlust in Panik gerät. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
 aller drei Raumsorten, Wände halten stand, Hinauslaufen durch die Türöffnung,
-Ausgang nur am Türfeld, Kasse mit Geld und Fahndungsstufe — bei 60 fps drinnen
+Ausgang nur am Türfeld, Kasse mit Geld und Fahndungsstufe. Für das Straßenrennen:
+Strecke liegt vollständig auf Straßenachsen, Rivalen kommen aus der
+Startaufstellung frei und fahren alle Tore ab, Platzierung und Preisgeld
+stimmen, fünf Läufe eines Fahrers mit KI-gleicher Linie endeten wechselnd auf
+Platz 1 und 2 mit Führungswechseln unterwegs, dazu die Abbrüche (zu Fuß,
+Aussteigen, Haus, Neustart, doppeltes N, Zeitüberschreitung) und der Ausfall
+eines abgeschossenen Rivalen — bei 60 fps drinnen
 wie in der dichten Innenstadt mit 5 Sternen Fahndung
 (gemessen in headless Chromium ohne GPU; mit Grafikbeschleunigung entsprechend
 mehr Reserve).

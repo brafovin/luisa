@@ -16,6 +16,8 @@ canvas#game{display:block;width:100vw;height:100vh;cursor:none}
 
 #mission{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:19px;letter-spacing:1px;
   background:rgba(10,6,30,.55);padding:9px 20px;border-radius:22px;border:1px solid rgba(255,110,199,.4);white-space:nowrap}
+#mission.race{border-color:rgba(255,159,67,.85);background:rgba(40,14,4,.6);color:#ffd9a8;
+  font-family:"Impact","Arial Black",sans-serif;letter-spacing:2px;font-size:20px}
 #hint{position:absolute;bottom:186px;left:50%;transform:translateX(-50%);font-size:17px;color:#ffe27a;opacity:0;transition:opacity .2s}
 #hint.on{opacity:1}
 
