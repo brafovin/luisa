@@ -431,15 +431,52 @@ function drawPed3(ctx, p, d) {
 
   const bob = Math.sin(p.step) * h * 0.03;
   const cx = base.x, top = head.y;
-  ctx.fillStyle = shade(rgb(p.kind === 'cop' ? '#1b2f6b' : '#5b5b6e'), 0.85, d);
-  ctx.fillRect(cx - w * 0.34, top + h * 0.55, w * 0.68, h * 0.45);         // Beine
-  ctx.fillStyle = shade(rgb(p.shirt), 1, d);
-  ctx.beginPath();
-  ctx.moveTo(cx - w / 2, top + h * 0.62 + bob);
-  ctx.lineTo(cx - w * 0.42, top + h * 0.22 + bob);
-  ctx.quadraticCurveTo(cx, top + h * 0.12 + bob, cx + w * 0.42, top + h * 0.22 + bob);
-  ctx.lineTo(cx + w / 2, top + h * 0.62 + bob);
-  ctx.closePath(); ctx.fill();
+
+  if (p.dress) {
+    // Beine
+    ctx.fillStyle = shade(rgb(p.skin), 0.92, d);
+    const stride = Math.sin(p.step) * w * 0.10;
+    ctx.fillRect(cx - w * 0.24 + stride, top + h * 0.70, w * 0.17, h * 0.30);
+    ctx.fillRect(cx + w * 0.07 - stride, top + h * 0.70, w * 0.17, h * 0.30);
+    // Kleid: schmale Schultern, ausgestellter Saum
+    ctx.fillStyle = shade(rgb(p.shirt), 1, d);
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.36, top + h * 0.22 + bob);
+    ctx.quadraticCurveTo(cx, top + h * 0.13 + bob, cx + w * 0.36, top + h * 0.22 + bob);
+    ctx.lineTo(cx + w * 0.30, top + h * 0.44 + bob);
+    ctx.lineTo(cx + w * 0.60, top + h * 0.76);
+    ctx.lineTo(cx - w * 0.60, top + h * 0.76);
+    ctx.lineTo(cx - w * 0.30, top + h * 0.44 + bob);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = shade(rgb(p.shirt), 0.82, d);                          // Saumkante
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.60, top + h * 0.76);
+    ctx.quadraticCurveTo(cx, top + h * 0.82, cx + w * 0.60, top + h * 0.76);
+    ctx.lineTo(cx + w * 0.60, top + h * 0.73);
+    ctx.quadraticCurveTo(cx, top + h * 0.79, cx - w * 0.60, top + h * 0.73);
+    ctx.closePath(); ctx.fill();
+    // Arme
+    ctx.strokeStyle = shade(rgb(p.skin), 0.95, d);
+    ctx.lineWidth = Math.max(1, w * 0.13);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.34, top + h * 0.26 + bob);
+    ctx.lineTo(cx - w * 0.42, top + h * 0.56 - bob);
+    ctx.moveTo(cx + w * 0.34, top + h * 0.26 - bob);
+    ctx.lineTo(cx + w * 0.42, top + h * 0.56 + bob);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  } else {
+    ctx.fillStyle = shade(rgb(p.kind === 'cop' ? '#1b2f6b' : '#5b5b6e'), 0.85, d);
+    ctx.fillRect(cx - w * 0.34, top + h * 0.55, w * 0.68, h * 0.45);       // Beine
+    ctx.fillStyle = shade(rgb(p.shirt), 1, d);
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2, top + h * 0.62 + bob);
+    ctx.lineTo(cx - w * 0.42, top + h * 0.22 + bob);
+    ctx.quadraticCurveTo(cx, top + h * 0.12 + bob, cx + w * 0.42, top + h * 0.22 + bob);
+    ctx.lineTo(cx + w / 2, top + h * 0.62 + bob);
+    ctx.closePath(); ctx.fill();
+  }
   if (p.kind === 'cop') {                                                  // Dienstmarke
     ctx.fillStyle = shade(rgb('#ffd23f'), 1, d);
     ctx.fillRect(cx - w * 0.1, top + h * 0.3 + bob, w * 0.2, h * 0.06);
@@ -449,6 +486,7 @@ function drawPed3(ctx, p, d) {
 
 /** Kopf mit Gesicht. Nah dran sieht man Augen, Nase, Mund und Frisur. */
 function drawFace(ctx, p, hx, hy, r, d) {
+  if (p.kind !== 'cop' && r >= 2) drawHairBack(ctx, p, hx, hy, r, d);
   ctx.fillStyle = shade(rgb(p.skin), 1, d);
   ctx.beginPath(); ctx.arc(hx, hy, r, 0, TAU); ctx.fill();
   if (r < 3.5) return;                                   // zu weit weg für Details
@@ -509,11 +547,56 @@ function drawFace(ctx, p, hx, hy, r, d) {
     ctx.fillRect(hx - r * 1.05, hy - r * 0.24, r * 2.1, r * 0.22);
     ctx.fillStyle = shade(rgb('#ffd23f'), 1, d);
     ctx.fillRect(hx - r * 0.22, hy - r * 0.78, r * 0.44, r * 0.20);
-  } else if (!p.bald) {
-    ctx.fillStyle = shade(rgb(p.hair || '#2a1b12'), 1, d);
-    ctx.beginPath(); ctx.arc(hx, hy - r * 0.12, r * 1.0, Math.PI + 0.25, TAU - 0.25); ctx.fill();
+  } else {
+    // Deckhaar mit Scheitel
+    ctx.fillStyle = shade(rgb(p.hair), 1, d);
     ctx.beginPath();
-    ctx.ellipse(hx, hy - r * 0.62, r * 0.98, r * 0.42, 0, 0, TAU); ctx.fill();
+    ctx.ellipse(hx, hy - r * 0.34, r * 1.06, r * 0.78, 0, Math.PI, TAU);
+    ctx.fill();
+    const part = ((p.face || 0) % 2 ? 1 : -1) * r * 0.30;
+    ctx.beginPath();
+    ctx.moveTo(hx + part, hy - r * 0.86);
+    ctx.quadraticCurveTo(hx + part * 2.4, hy - r * 0.30, hx + part * 1.9, hy + r * 0.16);
+    ctx.lineTo(hx + part * 0.2, hy - r * 0.30);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+/** Haaransatz hinter dem Kopf: lang, Zopf, Bob oder Dutt. */
+function drawHairBack(ctx, p, hx, hy, r, d) {
+  const c = shade(rgb(p.hair), 0.9, d);
+  ctx.fillStyle = c;
+  switch (p.hairStyle) {
+    case 0:                                              // lang bis über die Schultern
+      ctx.beginPath();
+      ctx.moveTo(hx - r * 1.05, hy - r * 0.5);
+      ctx.quadraticCurveTo(hx - r * 1.4, hy + r * 1.7, hx - r * 0.5, hy + r * 2.1);
+      ctx.lineTo(hx + r * 0.5, hy + r * 2.1);
+      ctx.quadraticCurveTo(hx + r * 1.4, hy + r * 1.7, hx + r * 1.05, hy - r * 0.5);
+      ctx.closePath(); ctx.fill();
+      break;
+    case 1:                                              // Pferdeschwanz
+      ctx.beginPath();
+      ctx.ellipse(hx, hy - r * 0.2, r * 1.05, r * 1.0, 0, 0, TAU); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(hx + r * 0.8, hy - r * 0.5);
+      ctx.quadraticCurveTo(hx + r * 1.9, hy + r * 0.6, hx + r * 1.2, hy + r * 1.9);
+      ctx.quadraticCurveTo(hx + r * 1.0, hy + r * 0.7, hx + r * 0.5, hy - r * 0.2);
+      ctx.closePath(); ctx.fill();
+      break;
+    case 2:                                              // Bob bis zum Kinn
+      ctx.beginPath();
+      ctx.moveTo(hx - r * 1.12, hy - r * 0.4);
+      ctx.quadraticCurveTo(hx - r * 1.24, hy + r * 0.9, hx - r * 0.7, hy + r * 1.05);
+      ctx.lineTo(hx + r * 0.7, hy + r * 1.05);
+      ctx.quadraticCurveTo(hx + r * 1.24, hy + r * 0.9, hx + r * 1.12, hy - r * 0.4);
+      ctx.closePath(); ctx.fill();
+      break;
+    default:                                             // Dutt
+      ctx.beginPath();
+      ctx.ellipse(hx, hy - r * 0.2, r * 1.04, r * 0.98, 0, 0, TAU); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(hx, hy - r * 1.18, r * 0.46, r * 0.42, 0, 0, TAU); ctx.fill();
   }
 }
 
@@ -581,7 +664,7 @@ function render3d(ctx, vw, vh, time, frames) {
   for (const q of parts) if (visible(q.x, q.y, 6)) push(q.x, q.y, 6, q);
   for (const b of bullets) if (visible(b.x, b.y, 20)) push(b.x, b.y, 7, b);
   if (mission && visible(mission.x, mission.y, 60)) push(mission.x, mission.y, 8, mission);
-  if (stalkerPresent() && visible(stalker.x, stalker.y, 40)) push(stalker.x, stalker.y, 9, stalker);
+  for (const st of presentStalkers()) if (visible(st.x, st.y, 40)) push(st.x, st.y, 9, st);
 
   sceneList.sort((a, b) => b.d - a.d);
 
@@ -596,7 +679,7 @@ function render3d(ctx, vw, vh, time, frames) {
       case 6: drawParticle3(ctx, it.o); break;
       case 7: drawBullet3(ctx, it.o); break;
       case 8: drawMissionBeacon(ctx, it.o, it.d); break;
-      case 9: drawStalker3(ctx, it.d); break;
+      case 9: drawStalker3(ctx, it.o, it.d); break;
     }
   }
 }

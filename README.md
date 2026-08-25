@@ -75,26 +75,34 @@ in Autos steigt man dann mit **E** ein und aus.
 dauerhaft zu verstellen — beim Sniper deutlich spürbar, bei der Pistole ein
 leichtes Zucken.
 
-## Der Fremde
+## Die zwei Jäger
 
-Nach etwa 40 Sekunden bist du nicht mehr allein. Irgendwo hinter dir steht eine
-hagere, über drei Meter große Gestalt: schwarzer Körper, überlange Arme, ein
-bleiches Gesicht ohne Züge — nur zwei glimmende Augen.
+Du bist nicht allein in dieser Stadt. Zwei Gestalten jagen dich — und beide
+folgen derselben Regel: **sie erstarren, solange du sie ansiehst.** Hinsehen
+kannst du aber immer nur bei einer. Wer die eine im Blick behält, lässt die
+andere heranrücken.
 
-* **Sie erstarrt, solange du sie ansiehst.** Blickfeld allein genügt nicht: eine
-  Hauswand dazwischen zählt als weggeschaut, dann kommt sie näher.
-* **Wegschauen kostet Boden.** Sie läuft 4,9 — schneller als dein Sprint (4,3).
-  Zu Fuß entkommst du ihr nicht, nur rückwärts gehend, den Blick auf ihr.
-* **Anstarren hilft nur begrenzt.** Nach vier Sekunden hältst du sie nicht mehr:
-  sie verschwindet und steht wieder in deinem Rücken.
-* **Ein Auto ist die sichere Flucht** — jeder Wagen fährt schneller als sie.
-  Ab 1500 Einheiten Abstand lässt sie ab und kommt später wieder.
-* **Berührung kostet Leben**, dazu Herzschlag, Flüstern und ein Bild, das von den
-  Rändern her zuläuft. Je näher sie ist, desto schneller schlägt dein Herz.
-* **Sie ist zu vertreiben**: 240 Trefferpunkte — zwölf Pistolenschüsse oder vier
-  mit dem Sniper. Das bringt **$1.500**, und sie bleibt gut eine Minute fort.
-* Sie folgt dir auch in Häuser. Auf der Minimap taucht sie nur als flackernder
-  roter Punkt auf, und auch nur, wenn sie schon nah ist.
+| | DER FREMDE | DER SCHATTEN |
+| --- | --- | --- |
+| Gestalt | hager, 3,4 m, bleiches Gesicht ohne Züge | geduckt, 2,5 m, schwarze Masse mit Buckel |
+| Augen | glimmend orange | kalt türkis |
+| Tempo | 4,9 | 5,7 |
+| Trefferpunkte | 240 (4 Sniper-Schüsse) | 150 (2 Sniper-Schüsse) |
+| Erster Auftritt | nach 40 s | nach 78 s |
+| Belohnung | $1.500 | $900 |
+
+* **Blickfeld allein genügt nicht**: eine Hauswand dazwischen zählt als
+  weggeschaut, dann kommen sie näher.
+* **Wegschauen kostet Boden.** Beide sind schneller als dein Sprint (4,3). Zu
+  Fuß entkommst du ihnen nicht, nur rückwärts gehend, den Blick auf ihnen.
+* **Anstarren hilft nur begrenzt.** Nach drei bis vier Sekunden halten sie es
+  nicht mehr aus: sie verschwinden und stehen wieder in deinem Rücken.
+* **Ein Auto ist die sichere Flucht** — jeder Wagen fährt schneller als beide.
+  Ab 1500 Einheiten Abstand lassen sie ab und kommen später wieder.
+* **Berührung kostet Leben**, dazu Herzschlag, Flüstern und ein Bild, das von
+  den Rändern zuläuft — eingefärbt nach der, die gerade näher ist.
+* Beide folgen dir auch in Häuser. Auf der Minimap tauchen sie nur als
+  flackernde Punkte in ihrer Augenfarbe auf, und auch nur aus der Nähe.
 
 ## Häuser betreten
 
@@ -127,10 +135,16 @@ steht, sieht den Hinweis **[B] Haus betreten**.
   und Neonkanten, Parks, Parkplätze, Plazas, Strand mit Palmen und Ozean im Süden.
 * **Verkehr**: Autos fahren rechts, halten Abstand, biegen an Kreuzungen ab.
   Vier Fahrzeugtypen mit eigener Beschleunigung, Höchstgeschwindigkeit und Grip.
-* **Passanten** haben Gesichter: Augen mit Pupillen, Brauen, Nase, Mund und
-  unterschiedliche Frisuren, Cops tragen Dienstmütze. Wenn sie in Panik
-  geraten, reißen sie Augen und Mund auf. Aus der Ferne fallen die Details
-  automatisch weg. Sie laufen herum und rennen weg, sobald du gesucht wirst.
+* **Passantinnen** sind Mädchen in Kleidern, jede mit eigenem Gesicht: Augen mit
+  Pupillen, Brauen, Nase, Mund, Ohren, dazu vier Frisuren (lang, Pferdeschwanz,
+  Bob, Dutt) in wechselnden Farben. In Panik reißen sie Augen und Mund auf.
+  Aus der Ferne fallen die Details gestaffelt weg. Cops tragen Uniform und
+  Dienstmütze.
+* **Paare**: rund zwei Drittel sind zu zweit unterwegs und gehen in
+  aufeinander abgestimmten Farben nebeneinander her. Die eine führt, die andere
+  hält Schritt, schließt auf, wenn sie zurückfällt, und bummelt, wenn sie zu
+  weit vorn ist. Bei Fahndung fliehen beide. Stirbt eine, gerät die andere in
+  Panik und zieht allein weiter.
 * **Fahndungslevel** (0–5 Sterne): steigt bei Autodiebstahl, überfahrenen oder
   erschossenen Passanten und explodierten Fahrzeugen. Streifenwagen verfolgen
   und rammen dich; ab 2 Sternen kommen Cops zu Fuß, ab 3 Sternen schießen sie zurück.
@@ -154,7 +168,7 @@ js/utils.js     Mathe-Helfer, Eingabe, Farbumrechnung, Sound via WebAudio
 js/world.js     Stadtgenerator und räumliches Kollisionsraster
 js/render3d.js  Software-3D-Renderer: Projektion, Nahebenen-Clipping, Polygone
 js/interior.js  Innenräume: Grundriss, Einrichtung, Kollision, Rendering
-js/horror.js    Der Fremde: Auftritt, Verfolgung, Sichtprüfung, Darstellung
+js/horror.js    Die zwei Jäger: Auftritt, Verfolgung, Sichtprüfung, Darstellung
 js/game.js      Spielkern: Physik, KI, Waffen, Kamera, Spielablauf, HUD
 ```
 
@@ -180,7 +194,11 @@ zwei Sniper- gegen fünf Pistolentreffer pro Auto, und dass die rechte Maustaste
 mit gezogenem Sniper zielt statt einzusteigen. Für den Fremden: Auftritt
 außerhalb des Blickfelds, Erstarren beim Ansehen, Aufholen beim Wegschauen,
 Wand zwischen euch zählt als weggeschaut, Flucht im Auto gelingt, Berührung
-kostet Leben, vier Sniper-Treffer vertreiben ihn samt Belohnung. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
+kostet Leben, vier Sniper-Treffer vertreiben ihn samt Belohnung; für das Paar
+zusätzlich, dass Ansehen der einen die andere heranlässt, dass sie sich einzeln
+vertreiben lassen und dass der Schatten messbar schneller ist. Für die
+Passantinnen: Anteil der Paare, dass Paare über Sekunden zusammenbleiben, dass
+beide gemeinsam fliehen und die Überlebende nach einem Verlust in Panik gerät. Für die Innenräume zusätzlich: Türerkennung und Hinweis, Betreten
 aller drei Raumsorten, Wände halten stand, Hinauslaufen durch die Türöffnung,
 Ausgang nur am Türfeld, Kasse mit Geld und Fahndungsstufe — bei 60 fps drinnen
 wie in der dichten Innenstadt mit 5 Sternen Fahndung

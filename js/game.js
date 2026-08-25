@@ -464,18 +464,31 @@ function updateBullets() {
 
 /* ---------------------------- Passanten ---------------------------- */
 
-function makePed(x, y, kind) {
+const COUPLE_GAP = 15;          // Abstand nebeneinander
+const COUPLE_CHANCE = 0.55;     // so viele Passanten sind zu zweit unterwegs
+
+function makePed(x, y, kind, hue) {
   return {
     x, y, z: 0, vz: 0, kind,                                  // kind: civ | cop
     ang: rng() * TAU, spd: kind === 'cop' ? 2.9 : 0.7 + rng() * 0.7,
-    shirt: kind === 'cop' ? '#1b2f6b' : hslHex(rng() * 360, 62, 58),
-    hair: kind === 'cop' ? '#1b2138' : hslHex([28, 34, 20, 45, 300][(rng() * 5) | 0], 20 + rng() * 45, 12 + rng() * 34),
-    bald: kind !== 'cop' && rng() < 0.12,
+    partner: null, lead: true, follow: 1,                     // Ehepaare laufen zu zweit
+    shirt: kind === 'cop' ? '#1b2f6b' : hslHex(hue === undefined ? rng() * 360 : hue, 62, 58),
+    hair: kind === 'cop' ? '#1b2138' : hslHex([28, 34, 20, 45, 300][(rng() * 5) | 0], 22 + rng() * 48, 14 + rng() * 36),
+    hairStyle: (rng() * 4) | 0,        // 0 lang, 1 Zopf, 2 Bob, 3 Dutt
+    dress: kind !== 'cop',             // Passantinnen tragen Kleid oder Rock
     face: (rng() * 1000) | 0,          // Variation von Augenabstand und Mund
     fireCd: 40 + rng() * 60,
     skin: hslHex(25 + rng() * 15, 45 + rng() * 20, 45 + rng() * 28),
     turnCd: 0, panic: 0, dead: false, step: rng() * 10
   };
+}
+
+/** Zwei Passanten zu einem Paar verbinden: eine Person führt, eine geht daneben. */
+function linkCouple(a, b) {
+  a.partner = b; b.partner = a;
+  a.lead = true; b.lead = false;
+  b.spd = a.spd;                                              // gleiches Tempo
+  b.ang = a.ang;
 }
 
 function spawnPeds(n) {
@@ -488,7 +501,16 @@ function spawnPeds(n) {
     else if (edge === 1) { x = c.x + t * c.s; y = c.y + c.s - SW * 0.5; }
     else if (edge === 2) { x = c.x + SW * 0.5; y = c.y + t * c.s; }
     else { x = c.x + c.s - SW * 0.5; y = c.y + t * c.s; }
-    if (!inView(x, y, 60) || peds.length < 6) peds.push(makePed(x, y, 'civ'));
+    if (!inView(x, y, 60) || peds.length < 6) {
+      const hue = rng() * 360;
+      const a = makePed(x, y, 'civ', hue);
+      peds.push(a);
+      if (rng() < COUPLE_CHANCE) {                            // als Paar unterwegs
+        const b = makePed(x + 10, y + 8, 'civ', (hue + 22 + rng() * 46) % 360);
+        linkCouple(a, b);
+        peds.push(b);
+      }
+    }
   }
 }
 
@@ -517,10 +539,26 @@ function updatePed(p) {
   } else {
     if (player.wanted > 0 && d < 190) { p.panic = 60; p.ang = Math.atan2(p.y - py, p.x - px); }
     if (p.panic > 0) p.panic--;
-    if (--p.turnCd <= 0) { p.ang += (rng() - 0.5) * 1.6; p.turnCd = 40 + rng() * 90; }
+
+    if (p.partner && p.partner.dead) {                        // Partner verloren
+      p.partner = null; p.lead = true;
+      p.panic = Math.max(p.panic, 150);
+    }
+    if (p.panic <= 0 && p.partner && !p.lead) {
+      // Neben dem Partner bleiben statt eigener Wege gehen
+      const L = p.partner;
+      const side = L.ang + Math.PI / 2;
+      const tx = L.x + Math.cos(side) * COUPLE_GAP;
+      const ty = L.y + Math.sin(side) * COUPLE_GAP;
+      p.ang += clamp(angDiff(p.ang, Math.atan2(ty - p.y, tx - p.x)), -0.24, 0.24);
+      p.follow = clamp(dist(p.x, p.y, tx, ty) / 16, 0.3, 2);  // aufschließen oder bummeln
+    } else {
+      p.follow = 1;
+      if (--p.turnCd <= 0) { p.ang += (rng() - 0.5) * 1.6; p.turnCd = 40 + rng() * 90; }
+    }
   }
 
-  const sp = p.spd * (p.panic > 0 ? 2.6 : 1);
+  const sp = p.spd * (p.panic > 0 ? 2.6 : 1) * (p.follow || 1);
   p.x += Math.cos(p.ang) * sp;
   p.y += Math.sin(p.ang) * sp;
   p.hit = false;
@@ -814,7 +852,7 @@ function update() {
     if ((player.x - dr.x) * dr.nx + (player.y - dr.y) * dr.ny > 1) exitBuilding();
     else updateInterior(player.inside);
   }
-  updateStalker();
+  updateStalkers();
 
   // Fahndungslevel abbauen
   if (player.crimeCd > 0) player.crimeCd--;
@@ -994,9 +1032,11 @@ function drawMinimap() {
     mctx.fillStyle = c.kind === 'cop' ? '#3b7bff' : 'rgba(230,230,240,.6)';
     mctx.fillRect(x - 2, y - 2, 4, 4);
   }
-  if (stalkerPresent() && stalker.near > 0.35 && frames % 20 < 12) {
-    const [x, y] = m(stalker.x, stalker.y);
-    mctx.fillStyle = 'rgba(255,40,60,.9)';
+  for (const st of presentStalkers()) {                 // nur nah und nur flackernd
+    if (st.near < 0.35 || frames % 20 >= 12) continue;
+    const [x, y] = m(st.x, st.y);
+    const e = st.type.eye;
+    mctx.fillStyle = `rgba(${e[0]},${e[1]},${e[2]},.9)`;
     mctx.beginPath(); mctx.arc(x, y, 5, 0, TAU); mctx.fill();
   }
   if (mission) {
@@ -1130,8 +1170,11 @@ function resetGame(full) {
   player.car = null;
   player.inside = null;
   player.weapon = 0; player.scoped = false; player.zoom = 1; player.recoil = 0;
-  stalker.active = false; stalker.cd = ST_FIRST; stalker.near = 0; stalker.inside = null;
-  if (full) stalker.banished = 0;
+  for (const st of stalkers) {
+    st.active = false; st.cd = st.type.first; st.near = 0; st.inside = null;
+    st.hp = st.type.hp; st.stared = 0;
+    if (full) st.banished = 0;
+  }
   if (full) { player.cash = 0; player.kills = 0; interiors.clear(); }
   player.yaw = -Math.PI / 2; player.pitch = 0; player.lookOff = 0; player.bob = 0;
   setCamera();

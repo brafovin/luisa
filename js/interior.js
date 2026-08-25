@@ -169,6 +169,7 @@ function makeInterior(b) {
     p.spd = 0.4 + rnd() * 0.4;
     it.peds.push(p);
   }
+  if (it.peds.length === 2) linkCouple(it.peds[0], it.peds[1]);   // zu zweit im Laden
   return it;
 }
 
@@ -202,8 +203,17 @@ function updateInterior(it) {
     const d = dist(p.x, p.y, player.x, player.y);
     if (player.wanted > 0 && d < 160) { p.panic = 50; p.ang = Math.atan2(p.y - player.y, p.x - player.x); }
     if (p.panic > 0) p.panic--;
-    if (--p.turnCd <= 0) { p.ang += (rng() - 0.5) * 1.8; p.turnCd = 40 + rng() * 80; }
-    const sp = p.spd * (p.panic > 0 ? 2.4 : 1);
+    if (p.partner && p.partner.dead) { p.partner = null; p.lead = true; p.panic = Math.max(p.panic, 150); }
+    if (p.panic <= 0 && p.partner && !p.lead) {
+      const L = p.partner, side = L.ang + Math.PI / 2;
+      const tx = L.x + Math.cos(side) * COUPLE_GAP, ty = L.y + Math.sin(side) * COUPLE_GAP;
+      p.ang += clamp(angDiff(p.ang, Math.atan2(ty - p.y, tx - p.x)), -0.24, 0.24);
+      p.follow = clamp(dist(p.x, p.y, tx, ty) / 16, 0.3, 2);
+    } else {
+      p.follow = 1;
+      if (--p.turnCd <= 0) { p.ang += (rng() - 0.5) * 1.8; p.turnCd = 40 + rng() * 80; }
+    }
+    const sp = p.spd * (p.panic > 0 ? 2.4 : 1) * (p.follow || 1);
     p.x += Math.cos(p.ang) * sp; p.y += Math.sin(p.ang) * sp;
     p.hit = false;
     collideInside(it, p, 9, false);
@@ -245,7 +255,7 @@ function renderInterior(ctx, it, vw, vh, time, frames) {
   for (const b of bullets) _iList.push({ d: dist(b.x, b.y, cam.x, cam.y), t: 3, o: b });
   if (it.register && !it.register.looted)
     _iList.push({ d: dist(it.register.x, it.register.y, cam.x, cam.y), t: 4, o: it.register });
-  if (stalkerPresent()) _iList.push({ d: dist(stalker.x, stalker.y, cam.x, cam.y), t: 5, o: stalker });
+  for (const st of presentStalkers()) _iList.push({ d: dist(st.x, st.y, cam.x, cam.y), t: 5, o: st });
   _iList.sort((a, b) => b.d - a.d);
 
   for (const e of _iList) {
@@ -271,7 +281,7 @@ function renderInterior(ctx, it, vw, vh, time, frames) {
       case 1: drawPed3(ctx, o, e.d); break;
       case 2: drawParticle3(ctx, o); break;
       case 3: drawBullet3(ctx, o); break;
-      case 5: drawStalker3(ctx, e.d); break;
+      case 5: drawStalker3(ctx, o, e.d); break;
       case 4: {
         const pulse = 0.5 + Math.sin(time * 0.006) * 0.5;
         drawBox(ctx, o.x - 9, o.y - 11, o.x + 9, o.y + 11, 27, 40, rgb('#2f3a4d'), 40);
