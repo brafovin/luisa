@@ -1,6 +1,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;background:#07060f;font-family:"Trebuchet MS",Verdana,sans-serif;color:#fff}
-canvas#game{display:block;width:100vw;height:100vh;cursor:crosshair}
+canvas#game{display:block;width:100vw;height:100vh;cursor:none}
 .hidden{display:none!important}
 
 /* ---------- HUD ---------- */
@@ -13,7 +13,7 @@ canvas#game{display:block;width:100vw;height:100vh;cursor:crosshair}
 
 #mission{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:19px;letter-spacing:1px;
   background:rgba(10,6,30,.55);padding:9px 20px;border-radius:22px;border:1px solid rgba(255,110,199,.4);white-space:nowrap}
-#hint{position:absolute;bottom:120px;left:50%;transform:translateX(-50%);font-size:17px;color:#ffe27a;opacity:0;transition:opacity .2s}
+#hint{position:absolute;bottom:186px;left:50%;transform:translateX(-50%);font-size:17px;color:#ffe27a;opacity:0;transition:opacity .2s}
 #hint.on{opacity:1}
 
 #speedo{position:absolute;bottom:24px;left:24px;font-size:52px;font-weight:bold;line-height:.9;opacity:0;transition:opacity .25s;

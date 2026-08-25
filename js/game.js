@@ -12,27 +12,46 @@ const mini = document.getElementById('minimap');
 const mctx = mini.getContext('2d');
 
 let VW = 0, VH = 0, DPR = 1;
-const ZOOM = 1.85;            // Kamerazoom - Weltausschnitt in Weltkoordinaten
-let WVW = 0, WVH = 0;         // sichtbarer Weltausschnitt (VW/ZOOM)
+
+const overlayCv = document.createElement('canvas');
+const overlayCtx = overlayCv.getContext('2d');
+
+/** Abendtönung + Vignette einmalig in eine Ebene rendern. */
+function buildOverlay() {
+  overlayCv.width = Math.max(1, VW); overlayCv.height = Math.max(1, VH);
+  const o = overlayCtx;
+  o.clearRect(0, 0, VW, VH);
+  const g = o.createLinearGradient(0, 0, 0, VH);
+  g.addColorStop(0, 'rgba(255,140,190,.05)');
+  g.addColorStop(1, 'rgba(60,20,110,.07)');
+  o.fillStyle = g; o.fillRect(0, 0, VW, VH);
+  const v = o.createRadialGradient(VW / 2, VH / 2, Math.min(VW, VH) * 0.36, VW / 2, VH / 2, Math.max(VW, VH) * 0.72);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.34)');
+  o.fillStyle = v; o.fillRect(0, 0, VW, VH);
+}
 
 function resize() {
   DPR = Math.min(devicePixelRatio || 1, 2);
   VW = innerWidth; VH = innerHeight;
-  WVW = VW / ZOOM; WVH = VH / ZOOM;
   canvas.width = VW * DPR; canvas.height = VH * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.imageSmoothingEnabled = true;
+  buildOverlay();
 }
 addEventListener('resize', resize);
 
 /* --------------------------- Konstanten --------------------------- */
 
-const GRAV       = 0.52;   // Schwerkraft pro Frame
-const JUMP_V     = 8.8;    // Absprunggeschwindigkeit zu Fuß
-const CAR_HOP_V  = 6.4;    // Hydraulik-Hüpfer im Auto
-const FLY_H      = 22;     // ab dieser Höhe fliegt man über niedrige Hindernisse
+const GRAV       = 0.30;   // Schwerkraft pro Frame
+const JUMP_V     = 3.7;    // Absprunggeschwindigkeit zu Fuß (Scheitel ~23 Einheiten)
+const CAR_HOP_V  = 3.4;    // Hydraulik-Hüpfer im Auto
+const FLY_H      = 13;     // ab dieser Höhe fliegt man über Zäune und Hecken
 const WALK       = 2.5;
 const RUN        = 4.3;
+const EYE        = 17;     // Augenhöhe zu Fuß
+const CAR_EYE    = 16;     // Augenhöhe im Auto
+const MOUSE_SENS = 0.0022; // Mausempfindlichkeit
+const PITCH_MAX  = 1.15;   // maximaler Nickwinkel
 const PED_R      = 11;
 const FRAME      = 1000 / 60;
 
@@ -51,15 +70,15 @@ let state = 'menu';           // menu | play | pause | dead
 let time = 0, frames = 0;
 let shake = 0;
 
-const cam = { x: 0, y: 0 };
-const mouse = { x: 0, y: 0, wx: 0, wy: 0, left: false, right: false, rightHit: false };
+const mouse = { dx: 0, dy: 0, left: false, right: false, rightHit: false, locked: false };
 const scratch = [];           // Puffer für Kollisionsabfragen
 
 const player = {
   x: 0, y: 0, z: 0, vz: 0, ang: -Math.PI / 2,
   vx: 0, vy: 0, health: 100, cash: 0, wanted: 0,
   car: null, stun: 0, hurtCd: 0, crimeCd: 0, starCd: 0, step: 0, kills: 0,
-  fireCd: 0, muzzle: 0
+  fireCd: 0, muzzle: 0,
+  yaw: 0, pitch: 0, lookOff: 0, bob: 0
 };
 
 let cars = [], peds = [], parts = [], bullets = [];
@@ -92,8 +111,9 @@ function spawnPointNearPlayer(minD = 620, maxD = 1150) {
   return randRoadPoint();
 }
 
+/** Grober Nähetest - ersetzt die alte Bildausschnittsprüfung. */
 function inView(x, y, pad = 140) {
-  return x > cam.x - pad && x < cam.x + WVW + pad && y > cam.y - pad && y < cam.y + WVH + pad;
+  return dist2(x, y, cam.x, cam.y) < (520 + pad) * (520 + pad);
 }
 
 /** Achsenweise Kollisionsauflösung gegen die Weltgeometrie. */
@@ -236,6 +256,7 @@ function updatePlayerCar(c) {
   if (Math.abs(c.spd) < 0.02) c.spd = 0;
 
   const steer = (rt ? 1 : 0) - (lf ? 1 : 0);
+  c.steerVis = lerp(c.steerVis || 0, steer, 0.18);
   const grip = c.type.grip * (c.z > 0 ? 0.45 : 1);            // in der Luft kaum Lenkung
   c.ang += steer * grip * clamp(Math.abs(c.spd) / c.max * 1.5, 0, 1) * Math.sign(c.spd || 1);
 
@@ -286,28 +307,33 @@ function updatePlayerCar(c) {
 const BULLET_SPD = 17;
 const BULLET_DMG = 20;
 
-function spawnBullet(x, y, ang, friendly, spd) {
+function spawnBullet(x, y, z, ang, pitch, friendly, spd) {
+  const flat = Math.cos(pitch);
   bullets.push({
-    x, y, ang, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
-    life: 46, friendly, px: x, py: y
+    x, y, z, ang,
+    vx: Math.cos(ang) * spd * flat, vy: Math.sin(ang) * spd * flat, vz: Math.sin(pitch) * spd,
+    life: 46, friendly, px: x, py: y, pz: z
   });
 }
 
 /** Linke Maustaste: aus der Hand oder aus dem Autofenster. */
+/** Geschossen wird immer dorthin, wo das Fadenkreuz steht. */
 function playerShoot() {
   const inCar = !!player.car;
   const ox = inCar ? player.car.x : player.x;
   const oy = inCar ? player.car.y : player.y;
-  const a = Math.atan2(mouse.wy - oy, mouse.wx - ox) + (rng() - 0.5) * (inCar ? 0.13 : 0.05);
-  const off = inCar ? 30 : 15;
-  spawnBullet(ox + Math.cos(a) * off, oy + Math.sin(a) * off, a, true, BULLET_SPD);
-  if (!inCar) player.ang = a;
-  player.muzzle = 3;
+  const spread = inCar ? 0.05 : 0.02;
+  const a = cam.yaw + (rng() - 0.5) * spread;
+  const pit = cam.pitch + (rng() - 0.5) * spread;
+  const off = inCar ? 30 : 16;
+  const ez = (inCar ? CAR_EYE + player.car.z : EYE + player.z) - 2;
+  spawnBullet(ox + Math.cos(a) * off, oy + Math.sin(a) * off, ez, a, pit, true, BULLET_SPD);
+  player.ang = a;
+  player.muzzle = 4;
   player.fireCd = inCar ? 13 : 9;
-  burst(ox + Math.cos(a) * off, oy + Math.sin(a) * off, inCar ? 8 : 12, 3, '#ffe08a', 1.6, 0.6);
-  shake = Math.min(6, shake + 1.4);
+  shake = Math.min(6, shake + 1.2);
+  player.pitch = clamp(player.pitch + 0.022, -PITCH_MAX, PITCH_MAX);   // Rückstoß
   Sfx.shot();
-  if (!inCar && player.z === 0) { player.vx -= Math.cos(a) * 0.5; player.vy -= Math.sin(a) * 0.5; }
 }
 
 /** Trifft die Kugel eine massive Wand? (Zäune/Hecken werden überschossen) */
@@ -341,10 +367,15 @@ function damageCar(c, dmg, byPlayer) {
 
 function updateBullets() {
   for (const b of bullets) {
-    b.px = b.x; b.py = b.y;
+    b.px = b.x; b.py = b.y; b.pz = b.z;
     for (let step = 0; step < 2; step++) {            // Teilschritte gegen Tunneln
-      b.x += b.vx / 2; b.y += b.vy / 2;
-      if (bulletBlocked(b.x, b.y)) {
+      b.x += b.vx / 2; b.y += b.vy / 2; b.z += b.vz / 2;
+      if (b.z <= 0) {                                 // Einschlag im Boden
+        b.life = 0;
+        burst(b.x, b.y, 1, 4, '#d8cfc0', 1.4, 1.2);
+        break;
+      }
+      if (b.z < 26 && bulletBlocked(b.x, b.y)) {
         b.life = 0;
         burst(b.x, b.y, 10, 4, '#ffd9a0', 1.6, 1);
         Sfx.ricochet();
@@ -354,6 +385,7 @@ function updateBullets() {
         let hit = false;
         for (const p of peds) {
           if (p.dead || dist2(p.x, p.y, b.x, b.y) > 12 * 12) continue;
+          if (b.z < p.z || b.z > p.z + 20) continue;              // über den Kopf geschossen
           p.dead = true; player.kills++;
           burst(p.x, p.y, 10, 12, '#c0223a', 3, 2.4);
           addWanted(p.kind === 'cop' ? 2 : 1);
@@ -361,6 +393,7 @@ function updateBullets() {
         }
         if (!hit) for (const c of cars) {
           if (c.dead || c.driver || dist2(c.x, c.y, b.x, b.y) > 22 * 22) continue;
+          if (b.z > c.z + 30) continue;
           burst(b.x, b.y, 8, 5, '#ffd66a', 2, 1.5);
           damageCar(c, BULLET_DMG, true);
           if (c.kind === 'cop' && !c.dead) addWanted(0);
@@ -372,7 +405,8 @@ function updateBullets() {
           if (dist2(player.car.x, player.car.y, b.x, b.y) < 24 * 24) {
             hurtPlayer(5, false); damageCar(player.car, 8, false); b.life = 0; break;
           }
-        } else if (player.z < FLY_H && dist2(player.x, player.y, b.x, b.y) < 12 * 12) {
+        } else if (dist2(player.x, player.y, b.x, b.y) < 12 * 12
+                   && b.z > player.z && b.z < player.z + 20) {
           hurtPlayer(8, false); b.life = 0; break;
         }
       }
@@ -389,9 +423,9 @@ function makePed(x, y, kind) {
   return {
     x, y, z: 0, vz: 0, kind,                                  // kind: civ | cop
     ang: rng() * TAU, spd: kind === 'cop' ? 2.9 : 0.7 + rng() * 0.7,
-    shirt: kind === 'cop' ? '#1b2f6b' : `hsl(${(rng() * 360) | 0} 65% 60%)`,
+    shirt: kind === 'cop' ? '#1b2f6b' : hslHex(rng() * 360, 62, 58),
     fireCd: 40 + rng() * 60,
-    skin: `hsl(${25 + rng() * 15} ${45 + rng() * 20}% ${45 + rng() * 30}%)`,
+    skin: hslHex(25 + rng() * 15, 45 + rng() * 20, 45 + rng() * 28),
     turnCd: 0, panic: 0, dead: false, step: rng() * 10
   };
 }
@@ -427,8 +461,8 @@ function updatePed(p) {
     // ab 3 Sternen schießen die Cops zurück - im Sprung fliegen die Kugeln unten durch
     if (player.wanted >= 3 && d < 300 && --p.fireCd <= 0) {
       p.fireCd = 55 + rng() * 45;
-      spawnBullet(p.x + Math.cos(p.ang) * 12, p.y + Math.sin(p.ang) * 12,
-        p.ang + (rng() - 0.5) * 0.22, false, 12);
+      spawnBullet(p.x + Math.cos(p.ang) * 12, p.y + Math.sin(p.ang) * 12, 12,
+        p.ang + (rng() - 0.5) * 0.22, 0, false, 12);
       Sfx.copshot();
     }
     if (d > 1400) p.dead = true;
@@ -452,9 +486,8 @@ function updatePed(p) {
 function updatePlayerOnFoot() {
   if (player.stun > 0) { player.stun--; }
 
-  // Blickrichtung folgt immer dem Mauszeiger
-  player.ang = Math.atan2(mouse.wy - player.y, mouse.wx - player.x);
-  const fx = Math.cos(player.ang), fy = Math.sin(player.ang);   // vorwärts
+  const fx = Math.cos(player.yaw), fy = Math.sin(player.yaw);   // vorwärts
+  player.ang = player.yaw;
   const rx = -fy, ry = fx;                                      // seitwärts
 
   let fwd = 0, side = 0;
@@ -476,8 +509,10 @@ function updatePlayerOnFoot() {
     player.vx = lerp(player.vx, mx * s, player.z > 0 ? 0.06 : 0.3);
     player.vy = lerp(player.vy, my * s, player.z > 0 ? 0.06 : 0.3);
     player.step += s * 0.22;
+    if (player.z === 0) player.bob += s * 0.17;
   } else if (player.z === 0) {
     player.vx *= 0.7; player.vy *= 0.7;
+    player.bob *= 0.9;
   }
 
   // *** Springen mit der Leertaste ***
@@ -595,15 +630,43 @@ function toggleCar() {
 
 /* ------------------------------- Update ------------------------------- */
 
+/** Kamera sitzt im Kopf bzw. auf dem Fahrersitz. */
+function setCamera() {
+  if (player.car) {
+    const c = player.car;
+    cam.x = c.x - Math.cos(c.ang) * 2;
+    cam.y = c.y - Math.sin(c.ang) * 2;
+    cam.z = CAR_EYE + c.z;
+    cam.roll = 0;
+  } else {
+    cam.x = player.x; cam.y = player.y;
+    cam.z = EYE + player.z + Math.sin(player.bob) * 0.85;
+    cam.roll = Math.sin(player.bob * 0.5) * 0.012;
+  }
+  cam.yaw = player.yaw;
+  cam.pitch = player.pitch;
+}
+
+
 function update() {
   time += FRAME; frames++;
 
-  // Mauszeiger in Weltkoordinaten
-  mouse.wx = cam.x + mouse.x / ZOOM;
-  mouse.wy = cam.y + mouse.y / ZOOM;
+  // Umsehen: horizontal frei, vertikal begrenzt
+  if (player.car) {
+    player.lookOff = clamp(player.lookOff + mouse.dx * MOUSE_SENS, -2.2, 2.2);
+    player.yaw = player.car.ang + player.lookOff;
+  } else {
+    player.yaw += mouse.dx * MOUSE_SENS;
+    if (player.yaw > Math.PI) player.yaw -= TAU;
+    if (player.yaw < -Math.PI) player.yaw += TAU;
+  }
+  player.pitch = clamp(player.pitch - mouse.dy * MOUSE_SENS, -PITCH_MAX, PITCH_MAX);
+  mouse.dx = mouse.dy = 0;
+  player.pitch *= 0.995;                                   // Rückstoß läuft langsam aus
 
   if (player.car) updatePlayerCar(player.car);
   else updatePlayerOnFoot();
+  setCamera();
 
   // Linke Maustaste: schießen
   if (player.fireCd > 0) player.fireCd--;
@@ -674,16 +737,16 @@ function update() {
 
   updateMission();
 
-  // Kamera
-  const tx = (player.car ? player.car.x : player.x) - WVW / 2 + (player.car ? Math.cos(player.car.ang) * player.car.spd * 10 : 0);
-  const ty = (player.car ? player.car.y : player.y) - WVH / 2 + (player.car ? Math.sin(player.car.ang) * player.car.spd * 10 : 0);
-  cam.x = lerp(cam.x, tx, 0.12);
-  cam.y = lerp(cam.y, ty, 0.12);
-  if (shake > 0) shake *= 0.88;
+  // Erschütterung wirkt nur auf das Bild, nicht auf das Zielen
+  if (shake > 0) {
+    cam.yaw += (rng() - 0.5) * shake * 0.006;
+    cam.pitch += (rng() - 0.5) * shake * 0.004;
+    shake *= 0.88;
+  }
 
   // Hinweistext
   let h = '';
-  if (!player.car && nearestCar(52)) h = '[RECHTSKLICK]  einsteigen';
+  if (!player.car && nearestCar(56)) h = '[RECHTSKLICK]  einsteigen';
   else if (player.car) h = '[RECHTSKLICK]  aussteigen   ·   [LEERTASTE]  Hüpfer   ·   [LINKSKLICK]  Drive-by';
   else if (player.z === 0) h = '';
   setHint(h);
@@ -691,227 +754,58 @@ function update() {
 
 /* ------------------------------ Rendering ------------------------------ */
 
-function drawShadow(x, y, r, alpha) {
-  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-  ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.6, 0, 0, TAU); ctx.fill();
-}
-
-function drawPed(p) {
-  const sx = p.x - cam.x, sy = p.y - cam.y;
-  const bob = Math.sin(p.step) * 1.6;
-  drawShadow(sx + 2, sy + 3, 9, 0.32);
-  ctx.save();
-  ctx.translate(sx, sy - p.z);
-  ctx.rotate(p.ang + Math.PI / 2);
-  // Arme/Beine als kleine Striche
-  ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-6, bob); ctx.lineTo(-9, bob + 5); ctx.moveTo(6, -bob); ctx.lineTo(9, -bob + 5); ctx.stroke();
-  ctx.fillStyle = p.shirt;
-  ctx.beginPath(); ctx.ellipse(0, 0, 7, 9, 0, 0, TAU); ctx.fill();
-  if (p.kind === 'cop') { ctx.fillStyle = '#ffd23f'; ctx.fillRect(-3, -2, 6, 3); }
-  ctx.fillStyle = p.skin;
-  ctx.beginPath(); ctx.arc(0, -4, 5.2, 0, TAU); ctx.fill();
-  ctx.restore();
-}
-
-function drawPlayer() {
-  const sx = player.x - cam.x, sy = player.y - cam.y;
-  const air = player.z > 0;
-  drawShadow(sx + 2, sy + 3, 10 - player.z * 0.05, 0.36 - player.z * 0.0025);
-  ctx.save();
-  ctx.translate(sx, sy - player.z);
-  ctx.rotate(player.ang + Math.PI / 2);
-  const bob = air ? 0 : Math.sin(player.step) * 2;
-  ctx.strokeStyle = 'rgba(20,10,30,.6)'; ctx.lineWidth = 3.4; ctx.lineCap = 'round';
-  if (air) { // Sprungpose: Arme raus
-    ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-12, -5); ctx.moveTo(6, 0); ctx.lineTo(12, -5); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.moveTo(-6, bob); ctx.lineTo(-10, bob + 6); ctx.moveTo(6, -bob); ctx.lineTo(10, -bob + 6); ctx.stroke();
-  }
-  ctx.fillStyle = '#20e3b2';                       // Hemd
-  ctx.beginPath(); ctx.ellipse(0, 0, 8, 10, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#12305c';                       // Weste
-  ctx.fillRect(-4, -3, 8, 8);
-  ctx.fillStyle = '#f0c090';                       // Kopf
-  ctx.beginPath(); ctx.arc(0, -5, 5.6, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#2a1b12';                       // Haare
-  ctx.beginPath(); ctx.arc(0, -6.5, 4.6, Math.PI, TAU); ctx.fill();
-  // Pistole in Blickrichtung (nach oben in lokalen Koordinaten)
-  ctx.fillStyle = '#23252d';
-  ctx.fillRect(3, -13, 3.4, 8);
-  ctx.fillRect(2, -7, 5, 3.5);
-  if (player.muzzle > 0) {                         // Mündungsfeuer
-    ctx.fillStyle = '#ffe9a0';
-    ctx.beginPath(); ctx.arc(4.7, -15, 4.5, 0, TAU); ctx.fill();
-    ctx.globalAlpha = 0.5; ctx.fillStyle = '#ffb03a';
-    ctx.beginPath(); ctx.arc(4.7, -16, 8, 0, TAU); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-  ctx.lineCap = 'butt';
-}
-
-function drawCar(c) {
-  const sx = c.x - cam.x, sy = c.y - cam.y;
-  ctx.save();                                   // Schatten folgt der Ausrichtung
-  ctx.translate(sx + 3 + c.z * 0.12, sy + 4 + c.z * 0.12);
-  ctx.rotate(c.ang);
-  ctx.fillStyle = `rgba(0,0,0,${clamp(0.32 - c.z * 0.003, 0.1, 0.32)})`;
-  roundRect(-c.w / 2, -c.h / 2, c.w, c.h, 6); ctx.fill();
-  ctx.restore();
-  ctx.save();
-  ctx.translate(sx, sy - c.z - 4);
-  ctx.rotate(c.ang);
-  const w = c.w, h = c.h;
-  // Karosserie
-  ctx.fillStyle = c.color;
-  roundRect(-w / 2, -h / 2, w, h, 6); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.18)';
-  roundRect(-w / 2, -h / 2, w, h * 0.35, 5); ctx.fill();
-  // Dach & Scheiben
-  ctx.fillStyle = 'rgba(20,24,40,.85)';
-  roundRect(-w * 0.16, -h * 0.36, w * 0.42, h * 0.72, 4); ctx.fill();
-  ctx.fillStyle = 'rgba(140,200,255,.55)';
-  roundRect(w * 0.28, -h * 0.32, w * 0.1, h * 0.64, 2); ctx.fill();
-  // Scheinwerfer
-  ctx.fillStyle = '#fff6c9';
-  ctx.fillRect(w / 2 - 3, -h / 2 + 3, 3, 5);
-  ctx.fillRect(w / 2 - 3, h / 2 - 8, 3, 5);
-  ctx.fillStyle = '#ff4d5e';
-  ctx.fillRect(-w / 2, -h / 2 + 3, 2.5, 5);
-  ctx.fillRect(-w / 2, h / 2 - 8, 2.5, 5);
-  if (c.kind === 'cop') {                          // Blaulicht
-    const on = ((frames / 8) | 0) % 2 === 0;
-    ctx.fillStyle = on ? '#3b7bff' : '#ff3b5c';
-    ctx.fillRect(-4, -h / 2 - 3, 8, 4);
-    ctx.globalAlpha = 0.20; ctx.fillStyle = on ? '#3b7bff' : '#ff3b5c';
-    ctx.beginPath(); ctx.arc(0, 0, 19, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.fillStyle = '#2b3a6b'; ctx.fillRect(-w * 0.1, -h / 2, w * 0.2, h);
-  }
-  ctx.restore();
-}
-
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function drawMarker() {
-  if (!mission) return;
-  const sx = mission.x - cam.x, sy = mission.y - cam.y;
-  const pulse = 1 + Math.sin(time * 0.006) * 0.12;
-  const col = mission.stage === 'pickup' ? '#ffd23f' : '#2bff88';
-  if (sx > -60 && sx < WVW + 60 && sy > -60 && sy < WVH + 60) {
-    ctx.save();
-    ctx.globalAlpha = 0.28; ctx.fillStyle = col;
-    ctx.beginPath(); ctx.ellipse(sx, sy, 30 * pulse, 18 * pulse, 0, 0, TAU); ctx.fill();
-    ctx.globalAlpha = 0.85; ctx.strokeStyle = col; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(sx, sy, 30 * pulse, 18 * pulse, 0, 0, TAU); ctx.stroke();
-    const bob = Math.sin(time * 0.005) * 6;
-    ctx.fillStyle = col; ctx.globalAlpha = 0.95;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy - 26 + bob); ctx.lineTo(sx - 11, sy - 46 + bob); ctx.lineTo(sx + 11, sy - 46 + bob);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
-  } else {
-    // Richtungspfeil am Bildschirmrand
-    const px = player.car ? player.car.x : player.x, py = player.car ? player.car.y : player.y;
-    const a = Math.atan2(mission.y - py, mission.x - px);
-    const rx = WVW / 2 + Math.cos(a) * (Math.min(WVW, WVH) / 2 - 46);
-    const ry = WVH / 2 + Math.sin(a) * (Math.min(WVW, WVH) / 2 - 46);
-    ctx.save(); ctx.translate(rx, ry); ctx.rotate(a);
-    ctx.fillStyle = col; ctx.globalAlpha = 0.9;
-    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-10, -9); ctx.lineTo(-10, 9); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  }
-}
-
 function render() {
   ctx.save();
-  ctx.scale(ZOOM, ZOOM);
-  if (shake > 0.4) ctx.translate((rng() - 0.5) * shake, (rng() - 0.5) * shake);
+  if (cam.roll) { ctx.translate(VW / 2, VH / 2); ctx.rotate(cam.roll); ctx.translate(-VW / 2, -VH / 2); }
 
-  World.drawGround(ctx, cam, WVW, WVH, time);
-  drawMarker();
+  render3d(ctx, VW, VH, time, frames);
 
-  // Alles nach Bildschirm-Y sortieren, damit die Extrusion stimmt
-  const list = [];
-  for (const b of World.buildings) if (inView(b.x + b.w / 2, b.y + b.h / 2, 320)) list.push({ y: b.y + b.h, t: 0, o: b });
-  for (const f of World.fences) if (inView(f.x, f.y, 200)) list.push({ y: f.y + f.h, t: 1, o: f });
-  for (const g of World.hedges) if (inView(g.x, g.y, 200)) list.push({ y: g.y + g.h, t: 2, o: g });
-  for (const p of World.palms) if (inView(p.x, p.y, 220)) list.push({ y: p.y, t: 3, o: p });
-  for (const c of cars) if (!c.dead && inView(c.x, c.y, 120)) list.push({ y: c.y, t: 4, o: c });
-  for (const p of peds) if (!p.dead && inView(p.x, p.y, 80)) list.push({ y: p.y, t: 5, o: p });
-  if (!player.car) list.push({ y: player.y, t: 6, o: player });
-  list.sort((a, b) => a.y - b.y);
-
-  for (const it of list) {
-    switch (it.t) {
-      case 0: World.drawBuilding(ctx, it.o, cam, WVW, WVH); break;
-      case 1: World.drawFence(ctx, it.o, cam, WVW, WVH); break;
-      case 2: World.drawHedge(ctx, it.o, cam, WVW, WVH); break;
-      case 3: World.drawPalm(ctx, it.o, cam, WVW, WVH, time); break;
-      case 4: drawCar(it.o); break;
-      case 5: drawPed(it.o); break;
-      case 6: drawPlayer(); break;
-    }
-  }
-
-  // Kugeln als kurze Leuchtspuren
-  ctx.lineCap = 'round';
-  for (const b of bullets) {
-    ctx.strokeStyle = b.friendly ? 'rgba(255,236,160,.95)' : 'rgba(255,120,120,.95)';
-    ctx.lineWidth = b.friendly ? 2.6 : 2.2;
-    ctx.beginPath();
-    ctx.moveTo(b.px - cam.x, b.py - cam.y);
-    ctx.lineTo(b.x - cam.x, b.y - cam.y);
-    ctx.stroke();
-  }
-  ctx.lineCap = 'butt';
-
-  // Partikel
-  for (const q of parts) {
-    ctx.globalAlpha = clamp(q.life / q.max, 0, 1);
-    ctx.fillStyle = q.color;
-    ctx.fillRect(q.x - cam.x - q.size / 2, q.y - cam.y - q.z - q.size / 2, q.size, q.size);
-  }
-  ctx.globalAlpha = 1;
+  // Innenraum bzw. Waffe im Vordergrund
+  if (player.car) drawDashboard(ctx, VW, VH, player.car, player.car.steerVis || 0);
+  const mz = drawWeapon(ctx, VW, VH, player.bob, player.muzzle > 0 ? 1 : 0, !!player.car);
+  if (player.muzzle > 0) drawMuzzleFlash(ctx, mz);
   ctx.restore();
 
-  // Sonnenuntergangs-Tint + Vignette
-  const g = ctx.createLinearGradient(0, 0, 0, VH);
-  g.addColorStop(0, 'rgba(255,140,190,.07)');
-  g.addColorStop(0.55, 'rgba(255,200,140,.04)');
-  g.addColorStop(1, 'rgba(60,20,110,.09)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-  const v = ctx.createRadialGradient(VW / 2, VH / 2, Math.min(VW, VH) * 0.35, VW / 2, VH / 2, Math.max(VW, VH) * 0.75);
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.30)');
-  ctx.fillStyle = v; ctx.fillRect(0, 0, VW, VH);
+  // Dunst und Abendstimmung (vorgerendert)
+  ctx.drawImage(overlayCv, 0, 0, VW, VH);
 
   if (player.hurtCd > 18) {
     ctx.fillStyle = `rgba(180,0,40,${(player.hurtCd - 18) * 0.04})`;
     ctx.fillRect(0, 0, VW, VH);
   }
 
-  // Fadenkreuz
-  const cr = 13 + (player.fireCd > 4 ? 5 : 0);
-  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, cr, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,46,99,.95)';
-  ctx.beginPath();
-  ctx.moveTo(mouse.x - cr - 7, mouse.y); ctx.lineTo(mouse.x - cr + 2, mouse.y);
-  ctx.moveTo(mouse.x + cr - 2, mouse.y); ctx.lineTo(mouse.x + cr + 7, mouse.y);
-  ctx.moveTo(mouse.x, mouse.y - cr - 7); ctx.lineTo(mouse.x, mouse.y - cr + 2);
-  ctx.moveTo(mouse.x, mouse.y + cr - 2); ctx.lineTo(mouse.x, mouse.y + cr + 7);
-  ctx.stroke();
-
+  drawCrosshair(ctx, VW, VH, player.fireCd > 4 ? 6 : 0);
+  drawCompass();
   drawMinimap();
   updateHud();
+}
+
+/** Auftragsrichtung als Peilung am oberen Bildrand. */
+function drawCompass() {
+  if (!mission) return;
+  const px = player.car ? player.car.x : player.x, py = player.car ? player.car.y : player.y;
+  const rel = angDiff(cam.yaw, Math.atan2(mission.y - py, mission.x - px));
+  const col = mission.stage === 'pickup' ? '#ffd23f' : '#2bff88';
+  const half = VW * 0.34;
+  const x = clamp(VW / 2 + rel / (FOV / 2) * (VW / 2), VW / 2 - half, VW / 2 + half);
+  const y = 92;
+  ctx.save();
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  if (Math.abs(rel) > FOV / 2) {                       // außerhalb des Blickfelds: Pfeil zur Seite
+    const dir = rel > 0 ? 1 : -1;
+    ctx.moveTo(x + dir * 13, y); ctx.lineTo(x - dir * 6, y - 9); ctx.lineTo(x - dir * 6, y + 9);
+  } else {
+    ctx.moveTo(x, y + 10); ctx.lineTo(x - 9, y - 6); ctx.lineTo(x + 9, y - 6);
+  }
+  ctx.closePath(); ctx.fill();
+  const d = Math.round(dist(px, py, mission.x, mission.y) / 10);
+  ctx.font = 'bold 13px Verdana,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.fillText(d + ' m', x, y - 14);
+  ctx.restore();
 }
 
 /* ------------------------------ Minimap ------------------------------ */
@@ -922,6 +816,9 @@ function drawMinimap() {
   mctx.save();
   mctx.beginPath(); mctx.arc(R, R, R - 2, 0, TAU); mctx.clip();
   mctx.fillStyle = '#3a3a48'; mctx.fillRect(0, 0, S, S);
+  mctx.translate(R, R);
+  mctx.rotate(-cam.yaw - Math.PI / 2);                 // vorne ist oben
+  mctx.translate(-R, -R);
 
   const px = player.car ? player.car.x : player.x, py = player.car ? player.car.y : player.y;
   const k = R / range;
@@ -946,16 +843,20 @@ function drawMinimap() {
     const [x, y] = m(mission.x, mission.y);
     mctx.fillStyle = mission.stage === 'pickup' ? '#ffd23f' : '#2bff88';
     mctx.beginPath();
-    mctx.arc(clamp(x, 6, S - 6), clamp(y, 6, S - 6), 5, 0, TAU);
+    mctx.arc(x, y, 5, 0, TAU);
     mctx.fill();
   }
-  // Spieler
+  mctx.restore();
+  // Blickrichtung zeigt auf der Karte immer nach oben
   mctx.save();
   mctx.translate(R, R);
-  mctx.rotate((player.car ? player.car.ang : player.ang) + Math.PI / 2);
+  mctx.fillStyle = 'rgba(255,255,255,.13)';
+  mctx.beginPath();
+  mctx.moveTo(0, 0);
+  mctx.arc(0, 0, R * 0.9, -Math.PI / 2 - FOV / 2, -Math.PI / 2 + FOV / 2);
+  mctx.closePath(); mctx.fill();
   mctx.fillStyle = '#fff';
-  mctx.beginPath(); mctx.moveTo(0, -7); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath(); mctx.fill();
-  mctx.restore();
+  mctx.beginPath(); mctx.moveTo(0, -8); mctx.lineTo(5, 6); mctx.lineTo(-5, 6); mctx.closePath(); mctx.fill();
   mctx.restore();
 }
 
@@ -1026,7 +927,8 @@ function resetGame(full) {
   player.health = 100; player.wanted = 0; player.stun = 0; player.hurtCd = 0;
   player.car = null;
   if (full) { player.cash = 0; player.kills = 0; }
-  cam.x = player.x - WVW / 2; cam.y = player.y - WVH / 2;
+  player.yaw = -Math.PI / 2; player.pitch = 0; player.lookOff = 0; player.bob = 0;
+  setCamera();
   lastHud = {};
   spawnTraffic(18);
   spawnPeds(30);
@@ -1043,8 +945,8 @@ function loop(now) {
 
   // Pause und Neustart gelten in jedem Spielzustand
   if (state !== 'dead' && Input.hit('KeyP')) {
-    if (state === 'play') { state = 'pause'; showOverlay('PAUSE', 'P zum Weiterspielen'); }
-    else { state = 'play'; hideOverlay(); }
+    if (state === 'play') { state = 'pause'; showOverlay('PAUSE', 'Klicken zum Weiterspielen'); document.exitPointerLock(); }
+    else { state = 'play'; hideOverlay(); requestLock(); }
   }
   if (Input.hit('KeyR')) { resetGame(false); state = 'play'; }
 
@@ -1066,13 +968,34 @@ function start() {
   Sfx.init(); Sfx.resume();
   el.menu.classList.add('hidden');
   el.hud.classList.remove('hidden');
-  mouse.x = VW / 2; mouse.y = VH / 2 - 60;
   resetGame(true);
   state = 'play';
+  requestLock();
 }
 
-addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+/* -------------------------- Maus & Zeigersperre -------------------------- */
+
+function requestLock() {
+  if (canvas.requestPointerLock) canvas.requestPointerLock();
+}
+
+document.addEventListener('pointerlockchange', () => {
+  mouse.locked = document.pointerLockElement === canvas;
+  if (!mouse.locked) {
+    mouse.left = mouse.right = false;
+    if (state === 'play') { state = 'pause'; showOverlay('PAUSE', 'Klicken zum Weiterspielen'); }
+  } else if (state === 'pause') { state = 'play'; hideOverlay(); }
+});
+
+addEventListener('mousemove', e => {
+  if (!mouse.locked) return;
+  mouse.dx += e.movementX || 0;
+  mouse.dy += e.movementY || 0;
+});
+
 addEventListener('mousedown', e => {
+  if (state === 'menu') return;
+  if (!mouse.locked) { requestLock(); e.preventDefault(); return; }   // erst zurück ins Spiel
   if (state !== 'play') return;
   if (e.button === 0) mouse.left = true;
   if (e.button === 2) { mouse.right = true; mouse.rightHit = true; e.preventDefault(); }
@@ -1081,8 +1004,8 @@ addEventListener('mouseup', e => {
   if (e.button === 0) mouse.left = false;
   if (e.button === 2) mouse.right = false;
 });
-addEventListener('contextmenu', e => { if (state === 'play') e.preventDefault(); });
-addEventListener('blur', () => { mouse.left = mouse.right = false; });
+addEventListener('contextmenu', e => { if (state !== 'menu') e.preventDefault(); });
+addEventListener('blur', () => { mouse.left = mouse.right = false; mouse.dx = mouse.dy = 0; });
 
 document.getElementById('startbtn').addEventListener('click', start);
 addEventListener('keydown', e => { if (state === 'menu' && (e.code === 'Enter' || e.code === 'Space')) start(); });

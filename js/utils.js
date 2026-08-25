@@ -30,6 +30,20 @@ function makeRng(seed) {
   };
 }
 
+/** HSL in Hex - der 3D-Renderer erwartet durchgehend #rrggbb. */
+function hslHex(h, sat, l) {
+  h = ((h % 360) + 360) % 360; sat /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * sat;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  const hx = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return '#' + hx(r) + hx(g) + hx(b);
+}
+
 /** Achsenparallele Box-Überschneidung. */
 function overlaps(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
