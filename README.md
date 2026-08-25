@@ -28,7 +28,7 @@ den Blick. Mit **Esc** kommst du raus, das Spiel pausiert dabei automatisch.
 | **W** | Vorwärts (zu Fuß in Blickrichtung, im Auto: Gas) |
 | **S** | Rückwärts (im Auto: bremsen / rückwärts) |
 | **A / D** | Seitwärts laufen bzw. lenken |
-| **Shift** | Sprinten |
+| **Y** oder **Shift** | Sprinten |
 | **H** | Hupe |
 | **P** | Pause |
 | **R** | Neustart |

@@ -545,7 +545,9 @@ function updatePlayerOnFoot() {
     if (Input.held('KeyD', 'ArrowRight')) side += 1;            // seitlich
     if (Input.held('KeyA', 'ArrowLeft')) side -= 1;
   }
-  const sprint = Input.held('ShiftLeft', 'ShiftRight') && fwd > 0;
+  // Y und Shift sprinten. Auf QWERTZ liefert die Y-Taste den Code 'KeyZ',
+  // auf QWERTY 'KeyY' - deshalb beide.
+  const sprint = Input.held('ShiftLeft', 'ShiftRight', 'KeyY', 'KeyZ') && fwd > 0;
   const spd = sprint ? RUN : WALK;
   let mx = fx * fwd + rx * side;
   let my = fy * fwd + ry * side;
